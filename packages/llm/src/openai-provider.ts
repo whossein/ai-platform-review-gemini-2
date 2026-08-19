@@ -47,6 +47,10 @@ export interface OpenAICompatibleOptions {
   readonly baseUrl: string;
   /** Bearer token. Optional for local servers like Ollama. */
   readonly apiKey?: string;
+  /** Custom auth header name if the gateway doesn't support Authorization Bearer */
+  readonly customAuthHeaderName?: string;
+  /** Custom auth prefix (e.g. "Bearer ") */
+  readonly customAuthHeaderPrefix?: string;
   /** Models this provider should advertise to the router. */
   readonly models: readonly OpenAICompatibleModel[];
   /** Injected for tests; defaults to global fetch. */
@@ -107,6 +111,8 @@ export class OpenAICompatibleProvider implements LLMProvider {
   readonly id: ProviderId;
   private readonly baseUrl: string;
   private readonly apiKey?: string;
+  private readonly customAuthHeaderName?: string;
+  private readonly customAuthHeaderPrefix?: string;
   private readonly fetchImpl: typeof fetch;
   private readonly descriptors: readonly ModelDescriptor[];
 
@@ -114,6 +120,8 @@ export class OpenAICompatibleProvider implements LLMProvider {
     this.id = opts.providerId as ProviderId;
     this.baseUrl = normalizeBaseUrl(opts.baseUrl);
     if (opts.apiKey) this.apiKey = opts.apiKey.trim();
+    if (opts.customAuthHeaderName) this.customAuthHeaderName = opts.customAuthHeaderName.trim();
+    if (opts.customAuthHeaderPrefix) this.customAuthHeaderPrefix = opts.customAuthHeaderPrefix;
     this.fetchImpl = opts.fetchImpl ?? fetch;
     this.descriptors = opts.models.map((m) => ({
       id: m.id as ModelId,
@@ -167,15 +175,31 @@ export class OpenAICompatibleProvider implements LLMProvider {
     };
 
     if (rawKey) {
-      // Standard RFC-6750 Authorization Bearer header
-      requestHeaders["Authorization"] = `Bearer ${rawKey}`;
-
-      // Additional provider-specific header compatibility
-      requestHeaders["x-api-key"] = rawKey;
-      requestHeaders["api-key"] = rawKey;
-      requestHeaders["x-goog-api-key"] = rawKey;
-      requestHeaders["HTTP-Referer"] = "https://ai-review-platform.local";
-      requestHeaders["X-Title"] = "AI Review Platform";
+      if (this.customAuthHeaderName) {
+        requestHeaders[this.customAuthHeaderName] = this.customAuthHeaderPrefix
+          ? `${this.customAuthHeaderPrefix}${rawKey}`
+          : rawKey;
+      } else if (this.baseUrl.includes("anthropic.com")) {
+        requestHeaders["x-api-key"] = rawKey;
+        requestHeaders["anthropic-version"] = "2023-06-01";
+      } else if (
+        this.baseUrl.includes("googleapis.com") ||
+        this.baseUrl.includes("generativelanguage")
+      ) {
+        requestHeaders["x-goog-api-key"] = rawKey;
+      } else if (
+        this.baseUrl.includes("azure.com") ||
+        this.baseUrl.includes("openai.azure.com")
+      ) {
+        requestHeaders["api-key"] = rawKey;
+      } else {
+        // Standard RFC-6750 Authorization Bearer header (used by OpenAI, AvalAI, DeepSeek, etc.)
+        requestHeaders["Authorization"] = `Bearer ${rawKey}`;
+        if (this.baseUrl.includes("openrouter.ai")) {
+          requestHeaders["HTTP-Referer"] = "https://ai-review-platform.local";
+          requestHeaders["X-Title"] = "AI Review Platform";
+        }
+      }
     }
 
     let targetEndpoint = `${this.baseUrl}/chat/completions`;
@@ -434,6 +458,7 @@ export function resolveApiKey(
     deepseek: ["DEEPSEEK_API_KEY", "AI_REVIEW_DEEPSEEK_API_KEY"],
     openrouter: ["OPENROUTER_API_KEY", "AI_REVIEW_OPENROUTER_API_KEY"],
     azure: ["AZURE_OPENAI_API_KEY", "AZURE_API_KEY", "AI_REVIEW_AZURE_API_KEY"],
+    avalai: ["AVALAI_API_KEY", "AVAL_API_KEY", "AI_REVIEW_AVALAI_API_KEY"],
   };
 
   const aliasList = aliases[provider.toLowerCase()] || [];
@@ -545,6 +570,8 @@ export function providersFromEnv(
               : preset.providerId,
             baseUrl,
             ...(apiKey ? { apiKey } : {}),
+            ...(data.customAuthHeaderName ? { customAuthHeaderName: data.customAuthHeaderName } : {}),
+            ...(data.customAuthHeaderPrefix ? { customAuthHeaderPrefix: data.customAuthHeaderPrefix } : {}),
             models: [
               {
                 id: data.model || preset.defaultModel,

@@ -123,4 +123,4 @@ Visit [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## 📄 License
 
-Private repository maintained for automated AI code review workflows. Version **0.1.3**.
+Private repository maintained for automated AI code review workflows. Version **0.1.8**.

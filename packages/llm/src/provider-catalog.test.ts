@@ -58,6 +58,15 @@ describe("providerFromEnv — selection", () => {
     expect(baseUrlOf(p)).toBe("http://localhost:11434/v1");
   });
 
+  it("selects AvalAI with its preset default endpoint", () => {
+    const p = providerFromEnv({
+      AI_REVIEW_LLM_PROVIDER: "avalai",
+      AVALAI_API_KEY: "aa-1234",
+    });
+    expect(p?.id).toBe("provider.avalai");
+    expect(baseUrlOf(p)).toBe("https://api.avalai.ir/v1");
+  });
+
   it("stays on the mock for endpoint-less providers (azure) with no base URL", () => {
     // Azure has no fixed endpoint; a key alone is not enough to reach it.
     expect(

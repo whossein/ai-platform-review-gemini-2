@@ -150,6 +150,8 @@ export async function requestTestProvider(config: {
   apiKey?: string | undefined;
   baseUrl?: string | undefined;
   model?: string | undefined;
+  customAuthHeaderName?: string | undefined;
+  customAuthHeaderPrefix?: string | undefined;
 }): Promise<TestProviderResult> {
   const res = await fetch("/api/test-provider", {
     method: "POST",

@@ -10,6 +10,8 @@ export interface AIProviderConfig {
   inputCostPer1M?: number | undefined;
   outputCostPer1M?: number | undefined;
   enabled?: boolean;
+  customAuthHeaderName?: string;
+  customAuthHeaderPrefix?: string;
 }
 
 export interface AppConfig {
@@ -88,6 +90,9 @@ export function SettingsModal({
             <option value="openrouter">OpenRouter</option>
             <option value="ollama">Ollama (Local / Free)</option>
             <option value="deepseek">DeepSeek</option>
+            <option value="avalai">AvalAI (Iran Gateway)</option>
+            <option value="azure">Azure OpenAI</option>
+            <option value="custom">Custom / Proxy</option>
           </select>
         </div>
         <div className="form-group">

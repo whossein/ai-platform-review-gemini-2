@@ -85,6 +85,14 @@ const PRESET_DEFAULTS: Record<
     defaultInputCost: 0.14,
     defaultOutputCost: 0.28,
   },
+  avalai: {
+    label: "AvalAI (Iranian Gateway)",
+    baseUrl: "https://api.avalai.ir/v1",
+    defaultModel: "gpt-4o-mini",
+    requiresKey: true,
+    defaultInputCost: 0.15,
+    defaultOutputCost: 0.6,
+  },
   azure: {
     label: "Azure OpenAI",
     baseUrl: "",
@@ -130,7 +138,7 @@ export function SettingsView() {
 
   const handleFetchModels = async (
     key: string,
-    pConfig: { provider: string; apiKey?: string; baseUrl?: string },
+    pConfig: { provider: string; apiKey?: string; baseUrl?: string; customAuthHeaderName?: string; customAuthHeaderPrefix?: string },
   ) => {
     setModelLists((prev) => ({
       ...prev,
@@ -144,6 +152,8 @@ export function SettingsView() {
           provider: pConfig.provider,
           apiKey: pConfig.apiKey,
           baseUrl: pConfig.baseUrl,
+          customAuthHeaderName: pConfig.customAuthHeaderName,
+          customAuthHeaderPrefix: pConfig.customAuthHeaderPrefix,
         }),
       });
       const data = await res.json();
@@ -205,6 +215,8 @@ export function SettingsView() {
       apiKey?: string;
       model?: string;
       baseUrl?: string;
+      customAuthHeaderName?: string;
+      customAuthHeaderPrefix?: string;
     },
   ) => {
     setTestStates((prev) => ({ ...prev, [testKey]: { loading: true } }));
@@ -214,6 +226,8 @@ export function SettingsView() {
         apiKey: pConfig.apiKey,
         model: pConfig.model,
         baseUrl: pConfig.baseUrl,
+        customAuthHeaderName: pConfig.customAuthHeaderName,
+        customAuthHeaderPrefix: pConfig.customAuthHeaderPrefix,
       });
       setTestStates((prev) => ({
         ...prev,
@@ -706,6 +720,7 @@ export function SettingsView() {
                       <option value="openrouter">OpenRouter</option>
                       <option value="ollama">Ollama (Local / Free)</option>
                       <option value="deepseek">DeepSeek</option>
+                      <option value="avalai">AvalAI (Iranian Gateway)</option>
                       <option value="azure">Azure OpenAI</option>
                       <option value="custom">Custom / Third-party Proxy</option>
                     </select>
@@ -753,6 +768,33 @@ export function SettingsView() {
                       )}
                     </div>
                   </div>
+
+                  {editForm.provider === "custom" && (
+                    <div style={{ display: "flex", gap: "1rem", marginTop: "0.75rem" }}>
+                      <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                        <label>Auth Header Name</label>
+                        <input
+                          type="text"
+                          value={editForm.customAuthHeaderName ?? ""}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, customAuthHeaderName: e.target.value })
+                          }
+                          placeholder="e.g. Authorization or x-api-key"
+                        />
+                      </div>
+                      <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                        <label>Auth Header Prefix</label>
+                        <input
+                          type="text"
+                          value={editForm.customAuthHeaderPrefix ?? ""}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, customAuthHeaderPrefix: e.target.value })
+                          }
+                          placeholder="e.g. Bearer (with trailing space)"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div
                     style={{
@@ -1379,6 +1421,7 @@ export function SettingsView() {
               <option value="openrouter">OpenRouter</option>
               <option value="ollama">Ollama (Local / Free)</option>
               <option value="deepseek">DeepSeek</option>
+              <option value="avalai">AvalAI (Iranian Gateway)</option>
               <option value="azure">Azure OpenAI</option>
               <option value="custom">Custom / Third-party Proxy</option>
             </select>
@@ -1422,6 +1465,33 @@ export function SettingsView() {
               )}
             </div>
           </div>
+
+          {newProvider.provider === "custom" && (
+            <div style={{ display: "flex", gap: "1rem", marginTop: "0.75rem" }}>
+              <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                <label>Auth Header Name</label>
+                <input
+                  type="text"
+                  value={newProvider.customAuthHeaderName ?? ""}
+                  onChange={(e) =>
+                    setNewProvider({ ...newProvider, customAuthHeaderName: e.target.value })
+                  }
+                  placeholder="e.g. Authorization or x-api-key"
+                />
+              </div>
+              <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                <label>Auth Header Prefix</label>
+                <input
+                  type="text"
+                  value={newProvider.customAuthHeaderPrefix ?? ""}
+                  onChange={(e) =>
+                    setNewProvider({ ...newProvider, customAuthHeaderPrefix: e.target.value })
+                  }
+                  placeholder="e.g. Bearer (with trailing space)"
+                />
+              </div>
+            </div>
+          )}
 
           <div style={{ display: "flex", gap: "1rem", marginTop: "0.75rem" }}>
             <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>

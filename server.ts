@@ -30,6 +30,10 @@ if (process.env.GEMINI_API_KEY) {
   }
 }
 
+if (process.env.AVALAI_API_KEY && !process.env.AI_REVIEW_AVALAI_API_KEY) {
+  process.env.AI_REVIEW_AVALAI_API_KEY = process.env.AVALAI_API_KEY;
+}
+
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -171,7 +175,7 @@ async function startServer() {
 
   app.post("/api/test-provider", async (req, res) => {
     try {
-      const { provider, apiKey, model, baseUrl } = req.body || {};
+      const { provider, apiKey, model, baseUrl, customAuthHeaderName, customAuthHeaderPrefix } = req.body || {};
       if (!provider) {
         res.status(400).json({ ok: false, error: "Provider name is required" });
         return;
@@ -223,6 +227,8 @@ async function startServer() {
         providerId: `test.${provider}`,
         baseUrl: effectiveBaseUrl,
         ...(effectiveApiKey ? { apiKey: effectiveApiKey } : {}),
+        customAuthHeaderName,
+        customAuthHeaderPrefix,
         models: [{ id: effectiveModel, tier: preset.defaultTier }],
       });
 
@@ -264,7 +270,7 @@ async function startServer() {
 
   app.post("/api/models", async (req, res) => {
     try {
-      const { provider, apiKey, baseUrl } = req.body || {};
+      const { provider, apiKey, baseUrl, customAuthHeaderName, customAuthHeaderPrefix } = req.body || {};
       if (!provider) {
         res.status(400).json({ ok: false, error: "Provider name is required" });
         return;
@@ -297,9 +303,26 @@ async function startServer() {
       };
 
       if (effectiveApiKey) {
-        if (provider === "anthropic") {
+        if (customAuthHeaderName) {
+          headers[customAuthHeaderName] = customAuthHeaderPrefix
+            ? `${customAuthHeaderPrefix}${effectiveApiKey}`
+            : effectiveApiKey;
+        } else if (
+          provider === "anthropic" ||
+          effectiveBaseUrl.includes("anthropic.com")
+        ) {
           headers["x-api-key"] = effectiveApiKey;
           headers["anthropic-version"] = "2023-06-01";
+        } else if (
+          effectiveBaseUrl.includes("googleapis.com") ||
+          effectiveBaseUrl.includes("generativelanguage")
+        ) {
+          headers["x-goog-api-key"] = effectiveApiKey;
+        } else if (
+          effectiveBaseUrl.includes("azure.com") ||
+          effectiveBaseUrl.includes("openai.azure.com")
+        ) {
+          headers["api-key"] = effectiveApiKey;
         } else {
           headers["Authorization"] = `Bearer ${effectiveApiKey}`;
         }

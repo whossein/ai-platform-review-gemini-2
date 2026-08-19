@@ -128,10 +128,12 @@ describe("providerFromEnv", () => {
     expect(p).toBeInstanceOf(OpenAICompatibleProvider);
   });
 
-  it("builds a keyless local provider from a base URL (Ollama)", () => {
+  it("builds an AvalAI provider from AVALAI_API_KEY alias", () => {
     const p = providerFromEnv({
-      AI_REVIEW_LLM_BASE_URL: "http://localhost:11434/v1",
+      AI_REVIEW_LLM_PROVIDER: "avalai",
+      AVALAI_API_KEY: "aa-test-key",
     });
     expect(p).toBeInstanceOf(OpenAICompatibleProvider);
+    expect(p?.id).toBe("provider.avalai");
   });
 });
