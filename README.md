@@ -4,7 +4,7 @@
 
 The **AI Code Review Platform** is an agentic, scalable, and multi-provider code review application designed to automatically detect security vulnerabilities, performance regressions, logical bugs, architectural antipatterns, and style violations across Git diffs and codebases.
 
-**🔗 [View Official Landing Page](https://your-username.github.io/ai-review-platform/) (Update URL when deploying to GitHub Pages)**
+**🔗 [View Official Landing Page](https://whossein.github.io/ai-platform-review-gemini-2/)**
 
 ---
 
