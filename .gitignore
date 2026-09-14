@@ -7,3 +7,9 @@ coverage/
 .env*
 !.env.example
 .turbo/
+tsconfig.app.tsbuildinfo 
+*/tsconfig.app.tsbuildinfo 
+*/tsconfig.tsbuildinfo 
+tsconfig.tsbuildinfo 
+*.tsbuildinfo
+**/*.tsbuildinfo
