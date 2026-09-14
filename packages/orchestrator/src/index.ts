@@ -30,5 +30,6 @@ export {
   MapRuleRegistry,
   DEFAULT_RULES,
   ruleFindingToIssue,
+  type FileRuleContext,
 } from "@ai-review/config";
 export { resolveProviderPreset, PROVIDER_CATALOG } from "@ai-review/llm";

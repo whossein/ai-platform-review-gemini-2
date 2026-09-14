@@ -14,7 +14,12 @@ import {
   parseDiffToFiles,
   publishReview,
 } from "@ai-review/git";
-import { SPECIALISTS, makeSpecialistDefinition } from "@ai-review/shared";
+import {
+  SPECIALISTS,
+  makeSpecialistDefinition,
+  makeSpecialistHandler,
+} from "@ai-review/shared";
+import { MapAgentRegistry } from "@ai-review/agent-runtime";
 import { loadDotEnv } from "@ai-review/shared";
 import * as http from "node:http";
 
@@ -37,6 +42,15 @@ if (process.env.AVALAI_API_KEY && !process.env.AI_REVIEW_AVALAI_API_KEY) {
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
+  // Build and populate the agent registry at startup (composition root)
+  const agentRegistry = new MapAgentRegistry();
+  for (const spec of SPECIALISTS) {
+    agentRegistry.register({
+      definition: makeSpecialistDefinition(spec, process.env),
+      handler: makeSpecialistHandler(spec, process.env),
+    });
+  }
 
   app.use(express.json({ limit: "50mb" }));
 
@@ -79,7 +93,8 @@ async function startServer() {
         }
       }
 
-      const agentsList = SPECIALISTS.map((s) => makeSpecialistDefinition(s, mergedEnv));
+      // Get available agents from the registry
+      const agentsList = agentRegistry.list();
       const reviewPlan = plan({
         diff: rawDiff,
         agents: agentsList,
@@ -382,7 +397,7 @@ async function startServer() {
 
       const parsedFiles = parseDiffToFiles(rawDiff);
 
-      const result = await runReview({
+      const result = await runReview(agentRegistry, {
         diff: rawDiff,
         files: parsedFiles,
         ...(body.threshold !== undefined
