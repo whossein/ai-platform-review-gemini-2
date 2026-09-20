@@ -16,10 +16,11 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
-    "@ai-review/core": "*"
+    "@ai-review/core": "*",
+    "typescript": "^5.5.0"
   },
   "devDependencies": {
-    "typescript": "^5.5.0",
+    "@types/node": "^20.0.0",
     "vitest": "^2.0.0"
   }
 }
