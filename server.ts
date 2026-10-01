@@ -41,7 +41,7 @@ if (process.env.AVALAI_API_KEY && !process.env.AI_REVIEW_AVALAI_API_KEY) {
 
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 4000;
 
   // Build and populate the agent registry at startup (composition root)
   const agentRegistry = new MapAgentRegistry();
@@ -190,7 +190,14 @@ async function startServer() {
 
   app.post("/api/test-provider", async (req, res) => {
     try {
-      const { provider, apiKey, model, baseUrl, customAuthHeaderName, customAuthHeaderPrefix } = req.body || {};
+      const {
+        provider,
+        apiKey,
+        model,
+        baseUrl,
+        customAuthHeaderName,
+        customAuthHeaderPrefix,
+      } = req.body || {};
       if (!provider) {
         res.status(400).json({ ok: false, error: "Provider name is required" });
         return;
@@ -285,7 +292,13 @@ async function startServer() {
 
   app.post("/api/models", async (req, res) => {
     try {
-      const { provider, apiKey, baseUrl, customAuthHeaderName, customAuthHeaderPrefix } = req.body || {};
+      const {
+        provider,
+        apiKey,
+        baseUrl,
+        customAuthHeaderName,
+        customAuthHeaderPrefix,
+      } = req.body || {};
       if (!provider) {
         res.status(400).json({ ok: false, error: "Provider name is required" });
         return;
