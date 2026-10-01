@@ -24,9 +24,13 @@ import type {
   SkillAccessor,
   SkillId,
   SkillInput,
+  SkillOutput,
+  SkillRegistry,
   ToolAccessor,
   ToolId,
   ToolInvocation,
+  ToolRegistry,
+  ToolResult,
 } from "@ai-review/core";
 
 function fail(
@@ -138,8 +142,62 @@ function validateResult(
   return undefined;
 }
 
+/** Creates a standard ToolAccessor from a ToolRegistry. */
+export function createToolAccessor(registry?: ToolRegistry): ToolAccessor {
+  if (!registry) {
+    return {
+      invoke: (inv: ToolInvocation): AsyncResult<ToolResult> =>
+        Promise.resolve(
+          fail("not_found", "tool.registry_empty", `no tool registry bound for tool "${inv.toolId}"`)
+        ),
+      available: () => [],
+    };
+  }
+  return {
+    invoke: (inv: ToolInvocation): AsyncResult<ToolResult> => {
+      const tool = registry.get(inv.toolId);
+      if (!tool) {
+        return Promise.resolve(
+          fail("not_found", "tool.not_found", `tool "${inv.toolId}" not found in registry`)
+        );
+      }
+      return tool.invoke(inv);
+    },
+    available: () => registry.list(),
+  };
+}
+
+/** Creates a standard SkillAccessor from a SkillRegistry. */
+export function createSkillAccessor(registry?: SkillRegistry): SkillAccessor {
+  if (!registry) {
+    return {
+      execute: (input: SkillInput): AsyncResult<SkillOutput> =>
+        Promise.resolve(
+          fail("not_found", "skill.registry_empty", `no skill registry bound for skill "${input.skillId}"`)
+        ),
+      available: () => [],
+    };
+  }
+  return {
+    execute: (input: SkillInput): AsyncResult<SkillOutput> => {
+      const skill = registry.get(input.skillId);
+      if (!skill) {
+        return Promise.resolve(
+          fail("not_found", "skill.not_found", `skill "${input.skillId}" not found in registry`)
+        );
+      }
+      return skill.execute(input);
+    },
+    available: () => registry.list(),
+  };
+}
+
 export class DefaultAgentRuntime implements AgentRuntime {
-  constructor(private readonly registry: AgentRegistry) {}
+  constructor(
+    private readonly registry: AgentRegistry,
+    private readonly toolRegistry?: ToolRegistry,
+    private readonly skillRegistry?: SkillRegistry,
+  ) {}
 
   async execute(
     id: AgentId,
@@ -177,8 +235,30 @@ export class DefaultAgentRuntime implements AgentRuntime {
       );
     }
 
+    // Bind capability accessors: if context already provides tools/skills, use them;
+    // otherwise bind to the runtime's configured tool/skill registries.
+    const boundTools =
+      ctx.tools && ctx.tools.available().length > 0
+        ? ctx.tools
+        : this.toolRegistry
+          ? createToolAccessor(this.toolRegistry)
+          : ctx.tools;
+
+    const boundSkills =
+      ctx.skills && ctx.skills.available().length > 0
+        ? ctx.skills
+        : this.skillRegistry
+          ? createSkillAccessor(this.skillRegistry)
+          : ctx.skills;
+
+    const effectiveCtx: AgentExecutionContext = {
+      ...ctx,
+      tools: boundTools,
+      skills: boundSkills,
+    };
+
     const { allowedTools, allowedSkills } = registered.definition;
-    const gatedCtx = gateCapabilities(ctx, allowedTools, allowedSkills);
+    const gatedCtx = gateCapabilities(effectiveCtx, allowedTools, allowedSkills);
 
     let result: AgentResult;
     try {

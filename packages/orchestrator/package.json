@@ -24,6 +24,8 @@
     "@ai-review/memory": "*",
     "@ai-review/reporting": "*",
     "@ai-review/shared": "*",
+    "@ai-review/skills": "*",
+    "@ai-review/tools": "*",
     "@ai-review/workflow-engine": "*"
   },
   "devDependencies": {

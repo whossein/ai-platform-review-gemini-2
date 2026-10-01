@@ -26,14 +26,30 @@ import {
   MapAgentRegistry,
   DefaultAgentRuntime,
 } from "@ai-review/agent-runtime";
+import { createDefaultToolRegistry } from "@ai-review/tools";
+import { createDefaultSkillRegistry } from "@ai-review/skills";
 import { InMemoryMemoryStore } from "@ai-review/memory";
 import { DagWorkflowEngine } from "@ai-review/workflow-engine";
 import { InMemoryCache, SPECIALISTS, makeSpecialistDefinition, makeSpecialistHandler } from "@ai-review/shared";
 
 const llmCache = new InMemoryCache<any>("llm_response");
 
+/**
+ * Test helper: creates a registry with all specialists.
+ */
+function createTestRegistry(env?: Record<string, string>): MapAgentRegistry {
+  const registry = new MapAgentRegistry();
+  for (const spec of SPECIALISTS) {
+    registry.register({
+      definition: makeSpecialistDefinition(spec, env),
+      handler: makeSpecialistHandler(spec, env),
+    });
+  }
+  return registry;
+}
+
 async function runReview(
-  opts: RunOptions & { llm?: LLMClient },
+  opts: RunOptions & { llm?: LLMClient; registry?: MapAgentRegistry },
 ): Promise<ReviewResult> {
   const contextEngine = new DefaultContextEngine();
   const envProviders = [
@@ -56,14 +72,10 @@ async function runReview(
       llmCache,
     );
   const memoryStore = new InMemoryMemoryStore();
-  const registry = new MapAgentRegistry();
-  for (const spec of SPECIALISTS) {
-    registry.register({
-      definition: makeSpecialistDefinition(spec, opts.env),
-      handler: makeSpecialistHandler(spec, opts.env),
-    });
-  }
-  const runtime = new DefaultAgentRuntime(registry);
+  const registry = opts.registry ?? createTestRegistry(opts.env);
+  const toolRegistry = createDefaultToolRegistry(process.cwd());
+  const skillRegistry = createDefaultSkillRegistry();
+  const runtime = new DefaultAgentRuntime(registry, toolRegistry, skillRegistry);
   const pricing = new Map();
 
   const ctx: OrchestratorContext = {
@@ -260,5 +272,134 @@ describe("runReview (end-to-end)", () => {
     expect(
       result.errors.some((e) => e.message.includes("Invalid API Key")),
     ).toBe(true);
+  });
+
+  it("executes a completely generic agent definition without knowing about 'Security' or 'Performance'", async () => {
+    // A registry holding ONLY a made-up domain agent — no SPECIALISTS at all.
+    // Proves the orchestrator is fully decoupled from concrete specialists.
+    const GENERIC_ISSUES = JSON.stringify({
+      issues: [
+        {
+          title: "Generic agent finding",
+          description: "a generic agent finding",
+          severity: "high",
+          confidence: 0.95,
+          reason: "generic reason",
+          suggestion: "generic suggestion",
+          file: "src/anything.txt",
+          line: 3,
+          category: "generic",
+        },
+      ],
+      confidence: 0.95,
+      summary: "generic summary",
+    });
+    const genericLlm: LLMClient = {
+      complete: async () => ({
+        ok: true as const,
+        value: {
+          content: GENERIC_ISSUES,
+          model: "mock.model" as ModelId,
+          finishReason: "stop" as const,
+          usage: { promptTokens: 10, completionTokens: 5 },
+        },
+      }),
+    };
+    const genericRegistry = new MapAgentRegistry();
+    genericRegistry.register({
+      definition: {
+        id: "agent.generic-reviewer" as never,
+        name: "Generic Reviewer",
+        goal: "Review anything",
+        description: "A made-up domain agent the orchestrator has never seen",
+        systemPrompt: "FOCUS:generic",
+        allowedTools: [],
+        allowedSkills: [],
+        outputSchema: {},
+        memoryScope: "review",
+        priority: 10,
+        confidenceThreshold: 0.6,
+        temperature: 0,
+      },
+      handler: {
+        run: async (ctx) => {
+          const completion = await ctx.llm.complete({
+            messages: [{ role: "user", content: ctx.seedSlice?.rendered ?? "" }],
+          });
+          if (!completion.ok) return { ok: false, error: completion.error };
+          const parsed = JSON.parse(completion.value.content) as {
+            issues: any[];
+            confidence: number;
+          };
+          return {
+            ok: true as const,
+            value: {
+              agentId: "agent.generic-reviewer" as never,
+              issues: parsed.issues.map((f, idx) => ({
+                id: `agent.generic-reviewer.${idx}` as never,
+                title: f.title,
+                description: f.description,
+                severity: f.severity,
+                confidence: f.confidence,
+                reason: f.reason,
+                suggestion: { description: f.suggestion },
+                location: { file: f.file, line: f.line },
+                references: [],
+                category: f.category,
+                producedBy: "agent.generic-reviewer" as never,
+                fingerprint: "deadbeef" as never,
+              })),
+              confidence: parsed.confidence,
+              usage: completion.value.usage,
+              model: completion.value.model,
+            },
+          };
+        },
+      },
+    });
+
+    const result = await runReview({
+      diff: DIFF,
+      llm: genericLlm,
+      registry: genericRegistry,
+    });
+
+    // The unknown agent ran to completion and its finding was accepted.
+    expect(result.total).toBeGreaterThan(0);
+    expect(result.accepted).toBeGreaterThan(0);
+    expect(result.issues.some((i) => i.category === "generic")).toBe(true);
+    expect(result.markdown).toContain("Generic agent finding");
+    // No real specialist ever executed: every issue came from the generic
+    // agent or the (free) deterministic rule engine — never an LLM reviewer.
+    expect(
+      result.issues.every(
+        (i) =>
+          i.producedBy === "agent.generic-reviewer" ||
+          i.producedBy === "agent.rule-engine",
+      ),
+    ).toBe(true);
+  });
+
+  it("registers specialists with Phase 4 capabilities and executes skills in review", async () => {
+    const registry = createTestRegistry();
+    const contributingSpec = registry.get("agent.contributing-reviewer" as any);
+    const securitySpec = registry.get("agent.security-reviewer" as any);
+    const reactSpec = registry.get("agent.react-reviewer" as any);
+
+    expect(contributingSpec?.definition.allowedSkills).toContain("skill.governance.contributing-compliance");
+    expect(contributingSpec?.definition.allowedSkills).toContain("skill.diff.analyze");
+    expect(securitySpec?.definition.allowedSkills).toContain("skill.analysis.imports");
+    expect(securitySpec?.definition.allowedSkills).toContain("skill.diff.analyze");
+    expect(reactSpec?.definition.allowedSkills).toContain("skill.code.inspect-symbol");
+    expect(reactSpec?.definition.allowedTools).toContain("tool.ast.symbols");
+
+    // Run review with specialists selected
+    const result = await runReview({
+      diff: DIFF,
+      selectedSpecialists: ["Contributing & Governance Reviewer", "Security Reviewer"],
+    });
+
+    expect(result.errors.length).toBe(0);
+    expect(result.metrics.agents.length).toBeGreaterThanOrEqual(2);
   });
 });

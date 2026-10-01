@@ -1,0 +1,43 @@
+/**
+ * @ai-review/api/handlers
+ *
+ * Reusable route handlers extracted from server entry points.
+ * These handlers encapsulate business logic and can be mounted on any HTTP framework
+ * (Express, Node http, etc.) without duplication.
+ */
+
+export {
+  estimateHandler,
+  type EstimateRequest,
+  type EstimateResponse,
+} from "./estimate.js";
+
+export {
+  reviewHandler,
+  type ReviewRequest,
+  type ReviewResponse,
+} from "./review.js";
+
+export {
+  testProviderHandler,
+  type TestProviderRequest,
+  type TestProviderResponse,
+} from "./test-provider.js";
+
+export {
+  modelsHandler,
+  type ModelsRequest,
+  type ModelsResponse,
+} from "./models.js";
+
+export {
+  publishHandler,
+  type PublishRequest,
+  type PublishResponse,
+} from "./publish.js";
+
+export {
+  applyLocalHandler,
+  type ApplyLocalRequest,
+  type ApplyLocalResponse,
+} from "./apply-local.js";

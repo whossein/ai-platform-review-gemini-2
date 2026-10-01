@@ -234,6 +234,66 @@ export const SPECIALISTS: readonly SpecialistSpec[] = [
   },
 ];
 
+function getSpecialistCapabilities(id: string): {
+  allowedTools: ToolId[];
+  allowedSkills: SkillId[];
+} {
+  switch (id) {
+    case "agent.contributing-reviewer":
+      return {
+        allowedTools: ["tool.fs.read", "tool.fs.list"] as ToolId[],
+        allowedSkills: [
+          "skill.governance.contributing-compliance",
+          "skill.diff.analyze",
+        ] as SkillId[],
+      };
+    case "agent.security-reviewer":
+      return {
+        allowedTools: ["tool.fs.read", "tool.fs.search"] as ToolId[],
+        allowedSkills: [
+          "skill.analysis.imports",
+          "skill.diff.analyze",
+        ] as SkillId[],
+      };
+    case "agent.react-reviewer":
+    case "agent.react-native-reviewer":
+      return {
+        allowedTools: ["tool.ast.symbols", "tool.fs.read"] as ToolId[],
+        allowedSkills: [
+          "skill.code.inspect-symbol",
+          "skill.analysis.imports",
+        ] as SkillId[],
+      };
+    case "agent.code-reviewer":
+      return {
+        allowedTools: [
+          "tool.ast.symbols",
+          "tool.fs.read",
+          "tool.fs.search",
+          "tool.fs.list",
+        ] as ToolId[],
+        allowedSkills: [
+          "skill.code.inspect-symbol",
+          "skill.analysis.imports",
+          "skill.diff.analyze",
+        ] as SkillId[],
+      };
+    case "agent.performance-reviewer":
+      return {
+        allowedTools: ["tool.fs.read", "tool.fs.search"] as ToolId[],
+        allowedSkills: [
+          "skill.diff.analyze",
+          "skill.code.inspect-symbol",
+        ] as SkillId[],
+      };
+    default:
+      return {
+        allowedTools: ["tool.fs.read"] as ToolId[],
+        allowedSkills: ["skill.diff.analyze"] as SkillId[],
+      };
+  }
+}
+
 export function makeSpecialistDefinition(
   spec: SpecialistSpec,
   env?: Record<string, string>,
@@ -243,6 +303,7 @@ export function makeSpecialistDefinition(
     spec.id === "agent.contributing-reviewer"
       ? ` Check if 'release-change' or CHANGELOG.md is updated when functional code is modified. Check docs/ and docs/contributing/ rules, branch naming conventions (e.g. feat/*, fix/*), commit messages (Conventional Commits), and PR template compliance.`
       : "";
+  const caps = getSpecialistCapabilities(spec.id);
   return {
     id: spec.id as AgentId,
     name: spec.name,
@@ -251,8 +312,8 @@ export function makeSpecialistDefinition(
     // The system prompt carries the FOCUS marker the model keys on, plus the
     // strict-JSON instruction required by ADR-0008.
     systemPrompt: `You are the ${spec.name}. FOCUS:${spec.focus}.${extraContext} Review the diff in the user message and return ONLY JSON matching {issues,confidence,summary}. Write all natural-language text in ${language}. No prose.`,
-    allowedTools: [] as ToolId[],
-    allowedSkills: [] as SkillId[],
+    allowedTools: caps.allowedTools,
+    allowedSkills: caps.allowedSkills,
     outputSchema: {},
     memoryScope: "review",
     priority: spec.priority,
@@ -285,6 +346,76 @@ export function makeSpecialistHandler(
   return {
     run: async (ctx) => {
       const rendered = ctx.seedSlice?.rendered ?? "";
+
+      // Execute available allowed skills to enrich context and provide deterministic verification
+      const skillInsights: string[] = [];
+      const availableSkillIds = new Set(ctx.skills.available().map((s) => s.id));
+
+      if (availableSkillIds.has("skill.diff.analyze" as SkillId) && rendered) {
+        const diffRes = await ctx.skills.execute({
+          skillId: "skill.diff.analyze" as SkillId,
+          args: { diff: rendered },
+        });
+        if (diffRes.ok) {
+          const res = diffRes.value.result as any;
+          skillInsights.push(
+            `[Diff Analysis]: ${res.filesChanged} files, +${res.linesAdded}/-${res.linesDeleted} lines, overall risk: ${res.riskLevel}${
+              res.sensitiveFiles?.length ? ` (sensitive files: ${res.sensitiveFiles.join(", ")})` : ""
+            }`
+          );
+        }
+      }
+
+      if (availableSkillIds.has("skill.governance.contributing-compliance" as SkillId)) {
+        const changedFiles = ctx.seedSlice?.files.map((f) => f.path) ?? [];
+        const compRes = await ctx.skills.execute({
+          skillId: "skill.governance.contributing-compliance" as SkillId,
+          args: { files: changedFiles, diff: rendered },
+        });
+        if (compRes.ok) {
+          const res = compRes.value.result as any;
+          if (!res.compliant && res.findings?.length) {
+            skillInsights.push(
+              `[Contributing Compliance]: ${res.missingRequirements.join(", ")}. Violations: ${res.findings.map((f: any) => `${f.rule} (${f.severity}): ${f.message}`).join("; ")}`
+            );
+          }
+        }
+      }
+
+      if (availableSkillIds.has("skill.analysis.imports" as SkillId) && ctx.seedSlice) {
+        const impRes = await ctx.skills.execute({
+          skillId: "skill.analysis.imports" as SkillId,
+          args: { slice: ctx.seedSlice },
+        });
+        if (impRes.ok) {
+          const res = impRes.value.result as any;
+          if (res.issues?.length) {
+            skillInsights.push(
+              `[Import Inspection]: ${res.issues.map((i: any) => `${i.file} -> ${i.importPath}: ${i.message}`).join("; ")}`
+            );
+          }
+        }
+      }
+
+      if (availableSkillIds.has("skill.code.inspect-symbol" as SkillId) && ctx.seedSlice) {
+        const symRes = await ctx.skills.execute({
+          skillId: "skill.code.inspect-symbol" as SkillId,
+          args: { slice: ctx.seedSlice },
+        });
+        if (symRes.ok) {
+          const res = symRes.value.result as any;
+          if (res.changedSymbols?.length) {
+            skillInsights.push(
+              `[Symbol Inspection]: ${res.changedSymbols.map((s: any) => `${s.kind} ${s.name} (${s.location.file})`).join(", ")}`
+            );
+          }
+        }
+      }
+
+      const promptContext = skillInsights.length > 0
+        ? `${rendered}\n\n--- DETERMINISTIC SKILL INSIGHTS ---\n${skillInsights.join("\n")}`
+        : rendered;
+
       const completion = await ctx.llm.complete({
         messages: [
           {
@@ -292,7 +423,7 @@ export function makeSpecialistHandler(
             content: `You are the ${spec.name}. FOCUS:${spec.focus}.${extraGuideline} Return ONLY JSON, no markdown fences, no prose, matching exactly: {"issues":[{"title":string,"description":string,"severity":"critical"|"high"|"medium"|"low"|"info","confidence":number (0..1, REQUIRED on every issue),"reason":string,"suggestion":string,"file":string,"line":number,"category":string}],"confidence":number,"summary":string}. Write the "title", "description", "reason", "suggestion", and "summary" text in ${language} — keep JSON keys, file paths, code identifiers, and severity/category values in English. Every issue MUST include a numeric "confidence" — omitting it causes the issue to be silently discarded.`,
             cacheable: true,
           },
-          { role: "user", content: rendered },
+          { role: "user", content: promptContext },
         ],
         temperature: 0,
         // Requesting a schema flips real providers into strict JSON mode

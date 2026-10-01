@@ -6,6 +6,8 @@ const http = require("http");
 let mainWindow;
 let serverProcess;
 
+const DEFAULT_PORT = process.env.PORT || "4000";
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -24,21 +26,21 @@ function createWindow() {
         ...process.env,
         ELECTRON_RUN_AS_NODE: "1",
         NODE_ENV: "production",
-        PORT: "3000",
+        PORT: DEFAULT_PORT,
       },
     });
 
     // Wait for the local server to be ready before loading the URL
     const checkServer = setInterval(() => {
       http
-        .get("http://localhost:3000", (res) => {
+        .get(`http://localhost:${DEFAULT_PORT}`, (res) => {
           if (
             res.statusCode === 200 ||
             res.statusCode === 304 ||
             res.statusCode === 404
           ) {
             clearInterval(checkServer);
-            mainWindow.loadURL("http://localhost:3000");
+            mainWindow.loadURL(`http://localhost:${DEFAULT_PORT}`);
           }
         })
         .on("error", () => {
@@ -47,7 +49,7 @@ function createWindow() {
     }, 500);
   } else {
     // In development mode, wait-on ensures the server is running before electron starts
-    mainWindow.loadURL("http://localhost:3000");
+    mainWindow.loadURL(`http://localhost:${DEFAULT_PORT}`);
   }
 }
 

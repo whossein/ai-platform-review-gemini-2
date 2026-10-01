@@ -85,6 +85,8 @@ export interface RunOptions {
   readonly selectedSpecialists?: readonly string[];
   /** Optional max retries per agent stage on transient errors (default: 2). */
   readonly maxRetries?: number;
+  /** Optional custom or persistent memory store. */
+  readonly memoryStore?: MemoryStore;
 }
 
 export class ReviewOrchestrator {

@@ -1,61 +1,39 @@
 /**
  * @ai-review/skills
  *
- * Reusable skills for agents (governance, contributing compliance, AST inspection, etc.)
+ * Reusable, composable pure capabilities for agents (Phase 4, ADR-0003).
+ *
+ *   - `contributingComplianceSkill` — PR/commit/branch/docs compliance
+ *   - `analyzeImportsSkill`         — circularity, deep traversal, sensitive packages
+ *   - `inspectSymbolSkill`          — AST hooks/components/functions classification
+ *   - `diffAnalysisSkill`           — additions, deletions, risk categorization
  */
 
-import type {
-  Skill,
-  SkillId,
-  SkillInput,
-  SkillOutput,
-  AsyncResult,
-} from "@ai-review/core";
+export {
+  contributingComplianceSkill,
+  contributingComplianceSkill as myAppSkill,
+  type ContributingComplianceResult,
+} from "./contributing.js";
 
-/**
- * Contributing & Documentation compliance skill.
- * Validates PR templates, branch naming, release notes, and documentation from docs/contributing.
- */
-export const contributingComplianceSkill: Skill = {
-  descriptor: {
-    id: "skill.governance.contributing-compliance" as SkillId,
-    name: "Contributing & Docs Compliance",
-    description:
-      "Verifies release-change documentation, branch naming, commit conventions, and contributing guidelines adherence.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        diff: { type: "string" },
-        files: { type: "array" },
-      },
-    },
-    outputSchema: {
-      type: "object",
-      properties: {
-        compliant: { type: "boolean" },
-        missingRequirements: { type: "array" },
-      },
-    },
-  },
-  async execute(input: SkillInput): AsyncResult<SkillOutput> {
-    const diff = String(input.args.diff ?? "");
-    const missing: string[] = [];
+export {
+  analyzeImportsSkill,
+  type ImportIssue,
+  type ImportAnalysisResult,
+} from "./imports.js";
 
-    // Basic heuristic analysis
-    if (!diff.includes("release-change") && !diff.includes("CHANGELOG")) {
-      missing.push("release-change file update");
-    }
+export {
+  inspectSymbolSkill,
+  type SymbolClassification,
+  type SymbolInspectionResult,
+} from "./symbols.js";
 
-    return {
-      ok: true,
-      value: {
-        result: {
-          compliant: missing.length === 0,
-          missingRequirements: missing,
-        },
-      },
-    };
-  },
-};
+export {
+  diffAnalysisSkill,
+  type DiffMetrics,
+} from "./diff.js";
 
-export { contributingComplianceSkill as myAppSkill };
+export {
+  MapSkillRegistry,
+  createDefaultSkillRegistry,
+  createSkillAccessor,
+} from "./registry.js";

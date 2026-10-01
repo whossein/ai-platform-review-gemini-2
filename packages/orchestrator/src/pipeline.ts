@@ -1,4 +1,4 @@
-import type { LLMProvider, Budget, BudgetGuard } from "@ai-review/core";
+import type { LLMProvider, Budget, BudgetGuard, AgentRegistry } from "@ai-review/core";
 import { DefaultContextEngine } from "@ai-review/context-engine";
 import {
   providersFromEnv,
@@ -6,17 +6,16 @@ import {
   RoutingLLMClient,
   CachingLLMClient,
 } from "@ai-review/llm";
+import { DefaultAgentRuntime, MapAgentRegistry } from "@ai-review/agent-runtime";
+import { createDefaultToolRegistry } from "@ai-review/tools";
+import { createDefaultSkillRegistry } from "@ai-review/skills";
 import {
-  MapAgentRegistry,
-  DefaultAgentRuntime,
-} from "@ai-review/agent-runtime";
-import {
+  InMemoryCache,
   SPECIALISTS,
   makeSpecialistDefinition,
   makeSpecialistHandler,
-  InMemoryCache,
 } from "@ai-review/shared";
-import { InMemoryMemoryStore } from "@ai-review/memory";
+import { PersistentMemoryStore } from "@ai-review/memory";
 import { DagWorkflowEngine, type StageExecutor } from "@ai-review/workflow-engine";
 import {
   ReviewOrchestrator,
@@ -27,17 +26,67 @@ import {
 
 const llmCache = new InMemoryCache<any>("llm_response");
 
+function isAgentRegistry(val: unknown): val is AgentRegistry {
+  return (
+    typeof val === "object" &&
+    val !== null &&
+    typeof (val as any).register === "function" &&
+    typeof (val as any).list === "function"
+  );
+}
+
+function createDefaultRegistry(env?: Record<string, string>): AgentRegistry {
+  const reg = new MapAgentRegistry();
+  for (const spec of SPECIALISTS) {
+    reg.register({
+      definition: makeSpecialistDefinition(spec, env),
+      handler: makeSpecialistHandler(spec, env),
+    });
+  }
+  return reg;
+}
+
 /**
  * Canonical review pipeline factory and executor.
  *
  * Configures and runs the full multi-agent review pipeline:
- * Context Engine → Dynamic Agent Registry → Routing LLM Client (with cache) →
+ * Context Engine → Agent Registry → Routing LLM Client (with cache) →
  * DAG Workflow Engine → Review Orchestrator.
+ *
+ * Supports both DI-style (explicit pre-populated registry) and standalone invocation.
+ *
+ * @param registryOrOpts - Either a pre-populated AgentRegistry or RunOptions
+ * @param optsOrProviders - RunOptions (if registry passed first) or extra providers
+ * @param maybeExtraProviders - Optional additional LLM providers
  */
+export async function runReview(
+  registry: AgentRegistry,
+  opts: RunOptions,
+  extraProviders?: readonly LLMProvider[]
+): Promise<ReviewResult>;
 export async function runReview(
   opts: RunOptions,
   extraProviders?: readonly LLMProvider[]
+): Promise<ReviewResult>;
+export async function runReview(
+  registryOrOpts: AgentRegistry | RunOptions,
+  optsOrProviders?: RunOptions | readonly LLMProvider[],
+  maybeExtraProviders?: readonly LLMProvider[]
 ): Promise<ReviewResult> {
+  let registry: AgentRegistry;
+  let opts: RunOptions;
+  let extraProviders: readonly LLMProvider[] | undefined;
+
+  if (isAgentRegistry(registryOrOpts)) {
+    registry = registryOrOpts;
+    opts = optsOrProviders as RunOptions;
+    extraProviders = maybeExtraProviders;
+  } else {
+    opts = registryOrOpts;
+    extraProviders = optsOrProviders as readonly LLMProvider[] | undefined;
+    registry = createDefaultRegistry(opts.env);
+  }
+
   const contextEngine = new DefaultContextEngine();
   const envProviders = [
     ...(extraProviders ?? []),
@@ -56,17 +105,10 @@ export async function runReview(
     new RoutingLLMClient(envProviders, router, routingCtx),
     llmCache,
   );
-  const memoryStore = new InMemoryMemoryStore();
-  const registry = new MapAgentRegistry();
-
-  for (const spec of SPECIALISTS) {
-    registry.register({
-      definition: makeSpecialistDefinition(spec, opts.env),
-      handler: makeSpecialistHandler(spec, opts.env),
-    });
-  }
-
-  const runtime = new DefaultAgentRuntime(registry);
+  const memoryStore = opts.memoryStore ?? new PersistentMemoryStore("./.data/memory");
+  const toolRegistry = createDefaultToolRegistry(process.cwd());
+  const skillRegistry = createDefaultSkillRegistry();
+  const runtime = new DefaultAgentRuntime(registry, toolRegistry, skillRegistry);
   const pricing = new Map();
 
   const ctx: OrchestratorContext = {

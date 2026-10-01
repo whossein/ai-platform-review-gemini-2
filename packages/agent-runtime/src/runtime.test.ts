@@ -341,3 +341,146 @@ describe("MapAgentRegistry", () => {
     expect(registry.get(AGENT)?.definition.name).toBe("second");
   });
 });
+
+describe("DefaultAgentRuntime with bound Tool and Skill Registries (Phase 4)", () => {
+  it("binds ToolRegistry and SkillRegistry and allows authorized invocations", async () => {
+    const agentRegistry = new MapAgentRegistry();
+    agentRegistry.register({
+      definition: makeDefinition({
+        allowedTools: ["tool.fs.read" as ToolId],
+        allowedSkills: ["skill.read-symbol" as SkillId],
+      }),
+      handler: {
+        run: async (ctx) => {
+          const toolRes = await ctx.tools.invoke({
+            toolId: "tool.fs.read" as ToolId,
+            input: { path: "a.ts" },
+          });
+          const skillRes = await ctx.skills.execute({
+            skillId: "skill.read-symbol" as SkillId,
+            args: { name: "foo" },
+          });
+          if (!toolRes.ok || !skillRes.ok) {
+            return {
+              ok: false,
+              error: { category: "internal", code: "failed", message: "fail" },
+            };
+          }
+          return { ok: true, value: okResult() };
+        },
+      },
+    });
+
+    const mockToolRegistry = {
+      register: () => {},
+      get: (id: ToolId) =>
+        id === "tool.fs.read"
+          ? {
+              descriptor: {
+                id,
+                name: "fs.read",
+                description: "",
+                origin: "internal" as const,
+                schema: { input: {}, output: {} },
+                capabilities: ["filesystem_read" as const],
+              },
+              invoke: async () => ({ ok: true as const, value: { output: { content: "ok" } } }),
+            }
+          : undefined,
+      list: () => [],
+    };
+
+    const mockSkillRegistry = {
+      register: () => {},
+      get: (id: SkillId) =>
+        id === "skill.read-symbol"
+          ? {
+              descriptor: {
+                id,
+                name: "read-symbol",
+                description: "",
+                inputSchema: {},
+                outputSchema: {},
+              },
+              execute: async () => ({ ok: true as const, value: { result: { found: true } } }),
+            }
+          : undefined,
+      list: () => [],
+    };
+
+    const runtime = new DefaultAgentRuntime(
+      agentRegistry,
+      mockToolRegistry,
+      mockSkillRegistry
+    );
+
+    const { ctx } = makeContext();
+    // Context has empty tools and skills to test runtime auto-binding
+    const unboundCtx: AgentExecutionContext = {
+      ...ctx,
+      tools: {
+        invoke: async () => ({
+          ok: false as const,
+          error: { category: "not_found", code: "empty", message: "empty" },
+        }),
+        available: () => [],
+      },
+      skills: {
+        execute: async () => ({
+          ok: false as const,
+          error: { category: "not_found", code: "empty", message: "empty" },
+        }),
+        available: () => [],
+      },
+    };
+
+    const res = await runtime.execute(AGENT, unboundCtx);
+    expect(res.ok).toBe(true);
+  });
+
+  it("strictly denies tools not declared in allowedTools", async () => {
+    const agentRegistry = new MapAgentRegistry();
+    agentRegistry.register({
+      definition: makeDefinition({
+        allowedTools: [], // None allowed
+      }),
+      handler: {
+        run: async (ctx) => {
+          const res = await ctx.tools.invoke({
+            toolId: "tool.fs.read" as ToolId,
+            input: {},
+          });
+          if (!res.ok) {
+            return { ok: false, error: res.error };
+          }
+          return { ok: true, value: okResult() };
+        },
+      },
+    });
+
+    const mockToolRegistry = {
+      register: () => {},
+      get: (id: ToolId) => ({
+        descriptor: {
+          id,
+          name: "fs.read",
+          description: "",
+          origin: "internal" as const,
+          schema: { input: {}, output: {} },
+          capabilities: ["filesystem_read" as const],
+        },
+        invoke: async () => ({ ok: true as const, value: { output: {} } }),
+      }),
+      list: () => [],
+    };
+
+    const runtime = new DefaultAgentRuntime(agentRegistry, mockToolRegistry);
+    const { ctx } = makeContext();
+    const res = await runtime.execute(AGENT, ctx);
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.error.code).toBe("agent.tool_denied");
+      expect(res.error.category).toBe("unauthorized");
+    }
+  });
+});

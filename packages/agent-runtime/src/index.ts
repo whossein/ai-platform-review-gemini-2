@@ -8,4 +8,8 @@
  */
 
 export { MapAgentRegistry } from "./registry.js";
-export { DefaultAgentRuntime } from "./runtime.js";
+export {
+  DefaultAgentRuntime,
+  createToolAccessor,
+  createSkillAccessor,
+} from "./runtime.js";
