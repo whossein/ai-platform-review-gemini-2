@@ -136,4 +136,36 @@ describe("ProjectStore & Registry", () => {
     expect(details?.stats.reviewCount).toBe(1);
     expect(details?.stats.averageScore).toBeDefined();
   });
+
+  it("creates and updates custom instructions and description for a project", async () => {
+    const project = await store.createProject({
+      name: "Core Backend",
+      repositoryUrl: "https://gitlab.company.com/backend/core-api",
+      description: "Main backend API service",
+      customInstructions: "Enforce strict Persian error messages and OWASP security rules.",
+    });
+
+    expect(project.description).toBe("Main backend API service");
+    expect(project.customInstructions).toBe(
+      "Enforce strict Persian error messages and OWASP security rules.",
+    );
+
+    const updated = await store.updateProject(project.id, {
+      name: "Core Backend V2",
+      description: "Updated description",
+      customInstructions: "New AI guidelines: Always check database indices.",
+    });
+
+    expect(updated.name).toBe("Core Backend V2");
+    expect(updated.description).toBe("Updated description");
+    expect(updated.customInstructions).toBe(
+      "New AI guidelines: Always check database indices.",
+    );
+
+    const reloaded = await store.getProject(project.id);
+    expect(reloaded?.project.name).toBe("Core Backend V2");
+    expect(reloaded?.project.customInstructions).toBe(
+      "New AI guidelines: Always check database indices.",
+    );
+  });
 });

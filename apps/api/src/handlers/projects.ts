@@ -26,7 +26,12 @@ export async function getProjectDetailsHandler(
 
 export async function createProjectHandler(
   projectStore: ProjectStore,
-  body: { name?: string | undefined; repositoryUrl?: string | undefined },
+  body: {
+    name?: string | undefined;
+    repositoryUrl?: string | undefined;
+    description?: string | undefined;
+    customInstructions?: string | undefined;
+  },
 ) {
   if (!body.repositoryUrl || typeof body.repositoryUrl !== "string") {
     const error = new Error("Field 'repositoryUrl' is required");
@@ -38,6 +43,8 @@ export async function createProjectHandler(
     const project = await projectStore.createProject({
       name: body.name || undefined,
       repositoryUrl: body.repositoryUrl,
+      description: body.description || undefined,
+      customInstructions: body.customInstructions || undefined,
     });
     return { project };
   } catch (err: any) {
@@ -48,6 +55,23 @@ export async function createProjectHandler(
     }
     throw err;
   }
+}
+
+export async function updateProjectHandler(
+  projectStore: ProjectStore,
+  id: string,
+  body: {
+    name?: string | undefined;
+    description?: string | undefined;
+    customInstructions?: string | undefined;
+  },
+) {
+  const project = await projectStore.updateProject(id, {
+    name: body.name,
+    description: body.description,
+    customInstructions: body.customInstructions,
+  });
+  return { project };
 }
 
 export async function findOrCreateProjectHandler(

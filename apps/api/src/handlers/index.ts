@@ -46,6 +46,7 @@ export {
   listProjectsHandler,
   getProjectDetailsHandler,
   createProjectHandler,
+  updateProjectHandler,
   findOrCreateProjectHandler,
   recordReviewHandler,
   deleteProjectHandler,

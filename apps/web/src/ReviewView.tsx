@@ -585,6 +585,8 @@ export function ReviewView({
         controller.signal,
         autoProjectId,
         autoMergeRequestId,
+        associatedProject?.customInstructions,
+        associatedProject?.name,
       );
       setResult(res);
       if (res.project) setAssociatedProject(res.project);
@@ -946,6 +948,25 @@ export function ReviewView({
                           }}
                         >
                           MR #{parsedPrRepo.mrNumber}
+                        </span>
+                      )}
+                      {associatedProject?.customInstructions && (
+                        <span
+                          style={{
+                            background: "rgba(168, 85, 247, 0.15)",
+                            color: "#c084fc",
+                            padding: "0.15rem 0.5rem",
+                            borderRadius: "4px",
+                            fontWeight: 600,
+                            fontSize: "0.75rem",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "0.3rem",
+                            flexShrink: 0,
+                          }}
+                          title={`AI will enforce project instructions:\n${associatedProject.customInstructions}`}
+                        >
+                          🧠 AI Guidelines Active ({associatedProject.customInstructions.length} chars)
                         </span>
                       )}
                     </div>
@@ -1933,6 +1954,22 @@ export function ReviewView({
                       }}
                     >
                       MR #{(result.mergeRequest || associatedMr)?.mrNumber}
+                    </span>
+                  )}
+                  {(result.project || associatedProject)?.customInstructions && (
+                    <span
+                      style={{
+                        background: "rgba(168, 85, 247, 0.2)",
+                        color: "#c084fc",
+                        padding: "0.1rem 0.4rem",
+                        borderRadius: "4px",
+                        fontWeight: 600,
+                        fontSize: "0.75rem",
+                        flexShrink: 0,
+                      }}
+                      title="Reviewed using project-specific AI system guidelines"
+                    >
+                      🧠 Project AI Guidelines Applied
                     </span>
                   )}
                 </div>

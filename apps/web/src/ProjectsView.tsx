@@ -12,11 +12,17 @@ import {
   ShieldCheck,
   Award,
   Sparkles,
+  BrainCircuit,
+  Pencil,
+  Save,
+  X,
+  FileText,
 } from "lucide-react";
 import {
   fetchProjects,
   fetchProjectDetails,
   createProject,
+  updateProject,
   deleteProject,
   type ProjectWithStats,
   type ProjectDetailsResponse,
@@ -50,15 +56,26 @@ export function ProjectsView({
     }
   }, [initialProjectId]);
   const [projectDetails, setProjectDetails] = useState<ProjectDetailsResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<"mrs" | "reviews" | "identity">("mrs");
+  const [activeTab, setActiveTab] = useState<"mrs" | "reviews" | "identity" | "instructions">("mrs");
 
   // Create Project Modal state
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [repoUrlInput, setRepoUrlInput] = useState<string>("");
   const [nameInput, setNameInput] = useState<string>("");
+  const [descriptionInput, setDescriptionInput] = useState<string>("");
+  const [instructionsInput, setInstructionsInput] = useState<string>("");
   const [creating, setCreating] = useState<boolean>(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+
+  // Edit Project Guidelines & Details state
+  const [isEditingGuidelines, setIsEditingGuidelines] = useState<boolean>(false);
+  const [editName, setEditName] = useState<string>("");
+  const [editDescription, setEditDescription] = useState<string>("");
+  const [editInstructions, setEditInstructions] = useState<string>("");
+  const [savingGuidelines, setSavingGuidelines] = useState<boolean>(false);
+  const [guidelinesError, setGuidelinesError] = useState<string | null>(null);
+  const [guidelinesSuccess, setGuidelinesSuccess] = useState<string | null>(null);
 
   // Load projects list
   const loadProjects = async () => {
@@ -81,12 +98,16 @@ export function ProjectsView({
   useEffect(() => {
     if (!selectedProjectId) {
       setProjectDetails(null);
+      setIsEditingGuidelines(false);
       return;
     }
     const loadDetails = async () => {
       try {
         const details = await fetchProjectDetails(selectedProjectId);
         setProjectDetails(details);
+        setEditName(details.project.name || "");
+        setEditDescription(details.project.description || "");
+        setEditInstructions(details.project.customInstructions || "");
       } catch (err: any) {
         console.error("Failed to load project details:", err);
       }
@@ -114,6 +135,8 @@ export function ProjectsView({
   const handleOpenCreateModal = () => {
     setRepoUrlInput("");
     setNameInput("");
+    setDescriptionInput("");
+    setInstructionsInput("");
     setCreateError(null);
     setCreateSuccess(null);
     setIsModalOpen(true);
@@ -142,6 +165,8 @@ export function ProjectsView({
       const newProject = await createProject({
         repositoryUrl: repoUrlInput.trim(),
         name: nameInput.trim() ? nameInput.trim() : undefined,
+        description: descriptionInput.trim() ? descriptionInput.trim() : undefined,
+        customInstructions: instructionsInput.trim() ? instructionsInput.trim() : undefined,
       });
       setCreateSuccess(`Project "${newProject.name}" created successfully!`);
       await loadProjects();
@@ -153,6 +178,32 @@ export function ProjectsView({
       setCreateError(err.message || "Failed to create project");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleSaveGuidelines = async () => {
+    if (!projectDetails) return;
+    try {
+      setSavingGuidelines(true);
+      setGuidelinesError(null);
+      setGuidelinesSuccess(null);
+      const updated = await updateProject(projectDetails.project.id, {
+        name: editName.trim() || undefined,
+        description: editDescription.trim() || undefined,
+        customInstructions: editInstructions.trim() || undefined,
+      });
+      setProjectDetails({
+        ...projectDetails,
+        project: updated,
+      });
+      setGuidelinesSuccess("✓ System instructions & project settings saved! AI reviewers will now apply these guidelines.");
+      setIsEditingGuidelines(false);
+      await loadProjects();
+      setTimeout(() => setGuidelinesSuccess(null), 4000);
+    } catch (err: any) {
+      setGuidelinesError(err.message || "Failed to save guidelines");
+    } finally {
+      setSavingGuidelines(false);
     }
   };
 
@@ -326,7 +377,60 @@ export function ProjectsView({
                     {projectDetails.project.namespace}
                   </span>
                 )}
+                {projectDetails.project.customInstructions ? (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("instructions")}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                      background: "rgba(168, 85, 247, 0.15)",
+                      border: "1px solid rgba(168, 85, 247, 0.35)",
+                      color: "#c084fc",
+                      padding: "0.2rem 0.6rem",
+                      borderRadius: "999px",
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                    title="Click to view/edit AI system instructions"
+                  >
+                    <BrainCircuit size={12} />
+                    <span>AI Guidelines Active ({projectDetails.project.customInstructions.length} chars)</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("instructions");
+                      setIsEditingGuidelines(true);
+                    }}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                      background: "rgba(255, 255, 255, 0.05)",
+                      border: "1px dashed var(--border)",
+                      color: "var(--muted)",
+                      padding: "0.2rem 0.6rem",
+                      borderRadius: "999px",
+                      fontSize: "0.75rem",
+                      cursor: "pointer",
+                    }}
+                    title="Add project-specific AI system context"
+                  >
+                    <Plus size={12} />
+                    <span>Add AI Guidelines</span>
+                  </button>
+                )}
               </div>
+
+              {projectDetails.project.description && (
+                <p style={{ margin: "0.1rem 0 0", color: "var(--muted)", fontSize: "0.85rem", wordBreak: "break-word" }}>
+                  {projectDetails.project.description}
+                </p>
+              )}
 
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", minWidth: 0, maxWidth: "100%" }}>
                 <a
@@ -382,6 +486,30 @@ export function ProjectsView({
             </div>
 
             <div className="project-actions-row" style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("instructions");
+                  setIsEditingGuidelines(true);
+                }}
+                style={{
+                  background: "rgba(168, 85, 247, 0.15)",
+                  border: "1px solid rgba(168, 85, 247, 0.35)",
+                  color: "#c084fc",
+                  borderRadius: "8px",
+                  padding: "0.5rem 0.85rem",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  fontSize: "0.85rem",
+                  fontWeight: 500,
+                }}
+                title="Edit AI system guidelines, name, and description"
+              >
+                <BrainCircuit size={16} />
+                <span>AI Guidelines</span>
+              </button>
               {onNavigateToReview && (
                 <button
                   className="run-btn"
@@ -604,6 +732,26 @@ export function ProjectsView({
             >
               <ShieldCheck size={16} />
               <span>Identity & Deduplication</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("instructions")}
+              style={{
+                background: activeTab === "instructions" ? "var(--panel)" : "transparent",
+                border: activeTab === "instructions" ? "1px solid var(--border)" : "1px solid transparent",
+                color: activeTab === "instructions" ? "var(--text)" : "var(--muted)",
+                padding: "0.5rem 1rem",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: 600,
+                fontSize: "0.85rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+              }}
+            >
+              <BrainCircuit size={16} />
+              <span>AI System Guidelines {projectDetails.project.customInstructions ? "✓" : ""}</span>
             </button>
           </div>
 
@@ -863,6 +1011,7 @@ export function ProjectsView({
               </p>
 
               <div
+                className="identity-meta-grid"
                 style={{
                   background: "var(--bg)",
                   border: "1px solid var(--border)",
@@ -909,13 +1058,500 @@ export function ProjectsView({
                   padding: "0.6rem 0.8rem",
                   borderRadius: "6px",
                   border: "1px solid rgba(63, 185, 80, 0.2)",
+                  flexWrap: "wrap",
+                  minWidth: 0,
                 }}
               >
-                <CheckCircle2 size={16} />
+                <CheckCircle2 size={16} style={{ flexShrink: 0 }} />
                 <span>
-                  Deduplication active: Any Merge Request submitted under {projectDetails.project.gitHost}/{projectDetails.project.repositoryPath} resolves to this project entity.
+                  Deduplication active: Any Merge Request submitted under <code className="break-url" style={{ wordBreak: "break-all", overflowWrap: "anywhere" }}>{projectDetails.project.gitHost}/{projectDetails.project.repositoryPath}</code> resolves to this project entity.
                 </span>
               </div>
+            </div>
+          )}
+
+          {/* Subtab 4: AI System Guidelines & Custom Instructions */}
+          {activeTab === "instructions" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+              {/* Header Box */}
+              <div
+                style={{
+                  background: "var(--panel)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "10px",
+                  padding: "1.5rem",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  flexWrap: "wrap",
+                  gap: "1rem",
+                }}
+              >
+                <div style={{ flex: "1 1 300px", minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
+                    <div
+                      style={{
+                        background: "rgba(168, 85, 247, 0.15)",
+                        color: "#c084fc",
+                        padding: "0.4rem",
+                        borderRadius: "8px",
+                      }}
+                    >
+                      <BrainCircuit size={20} />
+                    </div>
+                    <h3 style={{ margin: 0, fontSize: "1.2rem", color: "var(--text)" }}>
+                      AI System Instructions & Guidelines / دستورات سیستمی هوش مصنوعی
+                    </h3>
+                    {projectDetails.project.customInstructions ? (
+                      <span
+                        style={{
+                          fontSize: "0.75rem",
+                          fontWeight: 600,
+                          background: "rgba(34, 197, 94, 0.15)",
+                          color: "var(--low)",
+                          border: "1px solid rgba(34, 197, 94, 0.3)",
+                          padding: "0.15rem 0.6rem",
+                          borderRadius: "999px",
+                        }}
+                      >
+                        ✓ Active in AI Reviews
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: "0.75rem",
+                          fontWeight: 500,
+                          background: "rgba(255, 255, 255, 0.05)",
+                          color: "var(--muted)",
+                          border: "1px solid var(--border)",
+                          padding: "0.15rem 0.6rem",
+                          borderRadius: "999px",
+                        }}
+                      >
+                        Not Set (Default model prompts used)
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ margin: "0.5rem 0 0", color: "var(--muted)", fontSize: "0.85rem", lineHeight: 1.5 }}>
+                    توضیحات و دستورالعمل‌های اختصاصی این پروژه مستقیماً به عنوان کانتکست سیستمی به تمام ایجنت‌های هوش مصنوعی منتقل می‌شود. می‌توانید قوانین معماری، نام‌گذاری، زبان پیام‌ها و استانداردهای تیم خود را اینجا تعیین کنید.
+                  </p>
+                </div>
+
+                <div>
+                  {!isEditingGuidelines ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingGuidelines(true)}
+                      style={{
+                        background: "var(--accent)",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "8px",
+                        padding: "0.55rem 1rem",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.4rem",
+                      }}
+                    >
+                      <Pencil size={15} />
+                      <span>Edit Guidelines & Details</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditingGuidelines(false);
+                        setEditName(projectDetails.project.name || "");
+                        setEditDescription(projectDetails.project.description || "");
+                        setEditInstructions(projectDetails.project.customInstructions || "");
+                      }}
+                      style={{
+                        background: "rgba(255, 255, 255, 0.05)",
+                        border: "1px solid var(--border)",
+                        color: "var(--muted)",
+                        borderRadius: "8px",
+                        padding: "0.55rem 1rem",
+                        fontSize: "0.85rem",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.4rem",
+                      }}
+                    >
+                      <X size={15} />
+                      <span>Cancel</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Status alerts */}
+              {guidelinesSuccess && (
+                <div
+                  style={{
+                    background: "rgba(34, 197, 94, 0.12)",
+                    border: "1px solid rgba(34, 197, 94, 0.3)",
+                    color: "var(--low)",
+                    padding: "0.75rem 1rem",
+                    borderRadius: "8px",
+                    fontSize: "0.85rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <CheckCircle2 size={16} />
+                  <span>{guidelinesSuccess}</span>
+                </div>
+              )}
+              {guidelinesError && (
+                <div
+                  style={{
+                    background: "rgba(248, 81, 73, 0.12)",
+                    border: "1px solid rgba(248, 81, 73, 0.3)",
+                    color: "var(--critical)",
+                    padding: "0.75rem 1rem",
+                    borderRadius: "8px",
+                    fontSize: "0.85rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <AlertTriangle size={16} />
+                  <span>{guidelinesError}</span>
+                </div>
+              )}
+
+              {/* Viewer or Editor */}
+              {isEditingGuidelines ? (
+                /* ----------------- Edit Form ----------------- */
+                <div
+                  style={{
+                    background: "var(--panel)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "10px",
+                    padding: "1.5rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "1.25rem",
+                  }}
+                >
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        color: "var(--text)",
+                        marginBottom: "0.4rem",
+                      }}
+                    >
+                      Project Display Name
+                    </label>
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="e.g. Storefront PWA"
+                      style={{
+                        width: "100%",
+                        padding: "0.65rem 0.85rem",
+                        background: "var(--bg)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "8px",
+                        color: "var(--text)",
+                        fontSize: "0.85rem",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        color: "var(--text)",
+                        marginBottom: "0.4rem",
+                      }}
+                    >
+                      Project Description (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      placeholder="Brief overview of the project's purpose or architecture..."
+                      style={{
+                        width: "100%",
+                        padding: "0.65rem 0.85rem",
+                        background: "var(--bg)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "8px",
+                        color: "var(--text)",
+                        fontSize: "0.85rem",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                      <label
+                        style={{
+                          fontSize: "0.85rem",
+                          fontWeight: 600,
+                          color: "var(--text)",
+                        }}
+                      >
+                        AI System Instructions & Guidelines (توضیحات سیستمی به هوش مصنوعی)
+                      </label>
+                      <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontFamily: "monospace" }}>
+                        {editInstructions.length} characters ({editInstructions.split("\n").filter(Boolean).length} lines)
+                      </span>
+                    </div>
+
+                    <textarea
+                      rows={10}
+                      value={editInstructions}
+                      onChange={(e) => setEditInstructions(e.target.value)}
+                      placeholder={`Enter custom rules, instructions, or architectural guidelines here...\n\nExample:\n- All UI texts must be in fluent Persian (Farsi).\n- Ensure strict TypeScript typing, no 'any' types allowed.\n- Database queries must never run inside for-loops.\n- Enforce Conventional Commits format (feat, fix, refactor).`}
+                      style={{
+                        width: "100%",
+                        padding: "0.75rem 1rem",
+                        background: "var(--bg)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "8px",
+                        color: "var(--text)",
+                        fontSize: "0.85rem",
+                        fontFamily: "ui-monospace, monospace",
+                        lineHeight: 1.6,
+                        boxSizing: "border-box",
+                        resize: "vertical",
+                      }}
+                    />
+                  </div>
+
+                  {/* Quick guideline template chips */}
+                  <div>
+                    <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600, display: "block", marginBottom: "0.4rem" }}>
+                      Quick Templates (Click to append):
+                    </span>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+                      {[
+                        {
+                          label: "🌐 Persian / RTL Localization",
+                          text: "\n- تمام پیام‌های خطا و متون نمایشی به کاربر (UI strings) باید به زبان فارسی روان نوشته شوند.\n- فونت وزیرمتن و ویژگی‌های راست‌چین (dir=\"rtl\") رعایت شوند.",
+                        },
+                        {
+                          label: "🛡️ Strict Security & OWASP",
+                          text: "\n- بررسی دقیق ریسک‌های OWASP Top 10 (جلوگیری از SQL Injection, XSS, CSRF).\n- هیچ‌گونه کلید یا توکن محرمانه (API Key/Secret) نباید در کد هاردکد شود.\n- بررسی اعتبارسنجی ورودی‌های کاربر (Input sanitization).",
+                        },
+                        {
+                          label: "⚡ Clean Architecture & TypeScript",
+                          text: "\n- رعایت Clean Architecture و تفکیک لایه‌های دامنه (Domain) و ارائه‌دهنده (Service/Infra).\n- استفاده از تایپ‌های دقیق TypeScript و ممنوعیت استفاده از 'any'.\n- بررسی اثرات جانبی و استفاده صحیح از وابستگی‌های هوک‌ها.",
+                        },
+                        {
+                          label: "🌿 Branch & Commit Conventions",
+                          text: "\n- نام‌گذاری برنچ‌ها بر اساس الگوی: feature/<ticket>-<slug> یا fix/<ticket>-<slug>.\n- پیام‌های کامیت طبق استاندارد Conventional Commits (feat:, fix:, chore:, refactor:).",
+                        },
+                      ].map((tpl) => (
+                        <button
+                          key={tpl.label}
+                          type="button"
+                          onClick={() => setEditInstructions((prev) => (prev ? `${prev.trim()}\n${tpl.text.trim()}` : tpl.text.trim()))}
+                          style={{
+                            background: "rgba(255, 255, 255, 0.04)",
+                            border: "1px solid var(--border)",
+                            color: "var(--text)",
+                            borderRadius: "6px",
+                            padding: "0.3rem 0.65rem",
+                            fontSize: "0.75rem",
+                            cursor: "pointer",
+                            transition: "all 0.15s ease",
+                          }}
+                        >
+                          + {tpl.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      onClick={handleSaveGuidelines}
+                      disabled={savingGuidelines}
+                      className="run-btn"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.4rem",
+                        padding: "0.6rem 1.25rem",
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      <Save size={16} />
+                      <span>{savingGuidelines ? "Saving Guidelines..." : "Save System Instructions"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingGuidelines(false)}
+                      style={{
+                        background: "transparent",
+                        border: "1px solid var(--border)",
+                        color: "var(--muted)",
+                        borderRadius: "8px",
+                        padding: "0.6rem 1rem",
+                        fontSize: "0.85rem",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* ----------------- View Mode ----------------- */
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  {projectDetails.project.customInstructions ? (
+                    <div
+                      style={{
+                        background: "var(--panel)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "10px",
+                        padding: "1.5rem",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "1rem",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <span style={{ fontSize: "0.8rem", color: "var(--muted)", fontWeight: 600, textTransform: "uppercase" }}>
+                            Current Active Guidelines
+                          </span>
+                          <span style={{ fontSize: "0.75rem", color: "var(--accent)", fontFamily: "monospace" }}>
+                            ({projectDetails.project.customInstructions.length} chars)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingGuidelines(true)}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "var(--accent)",
+                            fontSize: "0.8rem",
+                            cursor: "pointer",
+                            padding: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.3rem",
+                            fontWeight: 500,
+                          }}
+                        >
+                          <Pencil size={13} />
+                          <span>Edit</span>
+                        </button>
+                      </div>
+
+                      <pre
+                        style={{
+                          margin: 0,
+                          background: "var(--bg)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "8px",
+                          padding: "1rem",
+                          fontFamily: "ui-monospace, monospace",
+                          fontSize: "0.85rem",
+                          color: "var(--text)",
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-word",
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {projectDetails.project.customInstructions}
+                      </pre>
+
+                      {/* Live Prompt Injection Preview */}
+                      <div
+                        style={{
+                          background: "rgba(47, 129, 247, 0.05)",
+                          border: "1px solid rgba(47, 129, 247, 0.2)",
+                          borderRadius: "8px",
+                          padding: "1rem",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.4rem",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "var(--accent)", fontSize: "0.8rem", fontWeight: 600 }}>
+                          <FileText size={15} />
+                          <span>AI Context Injection Preview / نحوه ارسال به مدل هوش مصنوعی:</span>
+                        </div>
+                        <pre
+                          style={{
+                            margin: 0,
+                            fontSize: "0.78rem",
+                            fontFamily: "monospace",
+                            color: "var(--muted)",
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-all",
+                          }}
+                        >
+                          {`--- PROJECT-SPECIFIC SYSTEM INSTRUCTIONS & GUIDELINES (${projectDetails.project.name}) ---\n${projectDetails.project.customInstructions}\nIMPORTANT: The above project-specific instructions MUST be strictly respected and prioritized by all reviewers.`}
+                        </pre>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        background: "var(--panel)",
+                        border: "1px dashed var(--border)",
+                        borderRadius: "10px",
+                        padding: "3rem 1.5rem",
+                        textAlign: "center",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: "1rem",
+                      }}
+                    >
+                      <BrainCircuit size={44} style={{ color: "var(--muted)", opacity: 0.6 }} />
+                      <div>
+                        <h4 style={{ margin: "0 0 0.3rem", fontSize: "1.1rem", color: "var(--text)" }}>
+                          No Custom System Instructions Yet
+                        </h4>
+                        <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)", maxWidth: "480px" }}>
+                          Add project-specific rules, architectural patterns, coding guidelines, or localization requirements so the AI specialists review code exactly according to your standards.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingGuidelines(true)}
+                        className="run-btn"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.4rem",
+                          fontSize: "0.85rem",
+                          padding: "0.55rem 1.2rem",
+                        }}
+                      >
+                        <Plus size={16} />
+                        <span>Add Project AI Guidelines</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1043,7 +1679,33 @@ export function ProjectsView({
                       >
                         {project.gitHost}
                       </span>
+                      {project.customInstructions && (
+                        <span
+                          style={{
+                            fontSize: "0.7rem",
+                            padding: "0.15rem 0.5rem",
+                            borderRadius: "4px",
+                            background: "rgba(168, 85, 247, 0.12)",
+                            color: "#c084fc",
+                            border: "1px solid rgba(168, 85, 247, 0.3)",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "0.25rem",
+                            fontWeight: 600,
+                          }}
+                          title="Has custom AI system instructions & guidelines"
+                        >
+                          <BrainCircuit size={11} />
+                          <span>AI Guidelines</span>
+                        </span>
+                      )}
                     </div>
+
+                    {project.description && (
+                      <p style={{ margin: "0.1rem 0 0", color: "var(--muted)", fontSize: "0.82rem", wordBreak: "break-word" }}>
+                        {project.description}
+                      </p>
+                    )}
 
                     <div
                       style={{
@@ -1298,6 +1960,74 @@ export function ProjectsView({
                     boxSizing: "border-box",
                   }}
                 />
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    marginBottom: "0.4rem",
+                    color: "var(--text)",
+                  }}
+                >
+                  Project Description (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Core storefront application for customer checkout"
+                  value={descriptionInput}
+                  onChange={(e) => setDescriptionInput(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "0.65rem 0.85rem",
+                    background: "var(--bg)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    color: "var(--text)",
+                    fontSize: "0.85rem",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
+                  <label
+                    style={{
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      color: "var(--text)",
+                    }}
+                  >
+                    AI System Instructions & Guidelines (Optional)
+                  </label>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                    دستورات سیستمی هوش مصنوعی
+                  </span>
+                </div>
+                <textarea
+                  rows={4}
+                  placeholder={`Custom instructions injected into AI context during review...\nExample: Enforce Persian UI texts; Check SQL query optimization; Require TypeScript interfaces.`}
+                  value={instructionsInput}
+                  onChange={(e) => setInstructionsInput(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "0.65rem 0.85rem",
+                    background: "var(--bg)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    color: "var(--text)",
+                    fontSize: "0.85rem",
+                    fontFamily: "ui-monospace, monospace",
+                    boxSizing: "border-box",
+                    resize: "vertical",
+                  }}
+                />
+                <span style={{ fontSize: "0.72rem", color: "var(--muted)", marginTop: "0.25rem", display: "block" }}>
+                  These rules are automatically provided as high-priority system context to all AI specialist reviewers for this project.
+                </span>
               </div>
 
               {/* Live Parser Box */}

@@ -76,6 +76,8 @@ export async function requestReview(
   signal?: AbortSignal,
   projectId?: string,
   mergeRequestId?: string,
+  customInstructions?: string,
+  projectName?: string,
 ): Promise<ReviewResponse> {
   const reqInit: RequestInit = {
     method: "POST",
@@ -87,6 +89,8 @@ export async function requestReview(
       ...(selectedSpecialists ? { selectedSpecialists } : {}),
       ...(projectId ? { projectId } : {}),
       ...(mergeRequestId ? { mergeRequestId } : {}),
+      ...(customInstructions ? { customInstructions } : {}),
+      ...(projectName ? { projectName } : {}),
     }),
   };
   if (signal) {
@@ -184,6 +188,8 @@ export interface Project {
   readonly gitHost: string;
   readonly repositoryPath: string;
   readonly namespace: string;
+  readonly description?: string | undefined;
+  readonly customInstructions?: string | undefined;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -258,6 +264,8 @@ export async function fetchProjectDetails(
 export async function createProject(params: {
   name?: string | undefined;
   repositoryUrl: string;
+  description?: string | undefined;
+  customInstructions?: string | undefined;
 }): Promise<Project> {
   const res = await fetch("/api/projects", {
     method: "POST",
@@ -270,6 +278,26 @@ export async function createProject(params: {
     (err as any).code = data.code;
     (err as any).existingProject = data.existingProject;
     throw err;
+  }
+  return data.project;
+}
+
+export async function updateProject(
+  id: string,
+  params: {
+    name?: string | undefined;
+    description?: string | undefined;
+    customInstructions?: string | undefined;
+  },
+): Promise<Project> {
+  const res = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || `Failed to update project (${res.status})`);
   }
   return data.project;
 }

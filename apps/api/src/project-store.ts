@@ -192,6 +192,8 @@ export class ProjectStore {
   async createProject(input: {
     name?: string | undefined;
     repositoryUrl: string;
+    description?: string | undefined;
+    customInstructions?: string | undefined;
   }): Promise<Project> {
     await this.ensureLoaded();
 
@@ -230,6 +232,8 @@ export class ProjectStore {
       gitHost: identity.gitHost,
       repositoryPath: identity.repositoryPath,
       namespace: identity.namespace,
+      description: input.description?.trim() || undefined,
+      customInstructions: input.customInstructions?.trim() || undefined,
       createdAt: now,
       updatedAt: now,
     };
@@ -241,6 +245,43 @@ export class ProjectStore {
 
     await this.persist();
     return project;
+  }
+
+  async updateProject(
+    id: string,
+    patch: {
+      name?: string | undefined;
+      description?: string | undefined;
+      customInstructions?: string | undefined;
+    },
+  ): Promise<Project> {
+    await this.ensureLoaded();
+    const existing = this.data.projects[id];
+    if (!existing) {
+      throw new Error(`Project with ID "${id}" not found`);
+    }
+
+    const now = new Date().toISOString() as IsoTimestamp;
+    const updated: Project = {
+      ...existing,
+      name:
+        patch.name !== undefined
+          ? patch.name.trim() || existing.name
+          : existing.name,
+      description:
+        patch.description !== undefined
+          ? patch.description.trim() || undefined
+          : existing.description,
+      customInstructions:
+        patch.customInstructions !== undefined
+          ? patch.customInstructions.trim() || undefined
+          : existing.customInstructions,
+      updatedAt: now,
+    };
+
+    this.data.projects[id] = updated;
+    await this.persist();
+    return updated;
   }
 
   /**

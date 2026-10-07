@@ -804,15 +804,15 @@
       <!-- English Section (dir="ltr") -->
       <div dir="ltr" class="text-left space-y-6">
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-blue-900/60 bg-blue-950/40 text-xs font-mono text-accent">
-          <span>PROJECT REGISTRY & REPOSITORY MANAGEMENT (v0.1.17)</span>
+          <span>PROJECT REGISTRY, AI SYSTEM INSTRUCTIONS & RESPONSIVE URLS (v0.1.19)</span>
         </div>
         <h2 class="text-3xl md:text-4xl font-bold tracking-tight text-white">
-          First-Class Project Entities & Relational Reviews
+          First-Class Projects, Custom AI System Guidelines & Responsive Architecture
         </h2>
         <p class="text-zinc-400 text-lg leading-relaxed max-w-4xl">
-          The system introduces first-class <strong>Project</strong> entities governed strictly by repository identity: <code>gitHost + repositoryPath</code> (e.g. <code>gitlab.company.com/frontend/storefront-pwa</code>). Unlike simplistic name-based lookups, identical repo names across different namespaces or git servers remain strictly isolated, while differing MR URLs from the same repo map deterministically to the identical project entity.
+          The system introduces first-class <strong>Project</strong> entities governed strictly by repository identity: <code>gitHost + repositoryPath</code> (e.g. <code>gitlab.company.com/frontend/storefront-pwa</code>). Each project supports <strong>tailored AI System Instructions & Guidelines</strong> that are dynamically injected into the system prompt of all specialist AI agents during code reviews. All URL displays, input boxes, and meta panels are fully responsive across all viewports with zero horizontal overflow.
         </p>
-        <div class="grid md:grid-cols-3 gap-6 pt-4 font-mono text-xs">
+        <div class="grid md:grid-cols-4 gap-6 pt-4 font-mono text-xs">
           <div class="bg-zinc-900/60 border border-zinc-800 p-5 rounded-xl space-y-2">
             <div class="text-accent font-bold text-sm">Dual Ingestion Modes</div>
             <p class="text-zinc-400 font-sans text-xs">Register projects manually from the UI or let the system auto-create and link them when any MR/PR URL is submitted.</p>
@@ -822,8 +822,12 @@
             <p class="text-zinc-400 font-sans text-xs">Normalized path hashing ignores <code>.git</code> extensions, trailing slashes, and MR subpaths, guaranteeing clean deduplication.</p>
           </div>
           <div class="bg-zinc-900/60 border border-zinc-800 p-5 rounded-xl space-y-2">
-            <div class="text-purple-400 font-bold text-sm">Relational Tracking</div>
-            <p class="text-zinc-400 font-sans text-xs">A unified hierarchy: Project &rarr; Merge Requests &rarr; Review Executions &rarr; Quality Scores & Trends.</p>
+            <div class="text-purple-400 font-bold text-sm">Custom AI Guidelines</div>
+            <p class="text-zinc-400 font-sans text-xs">Attach team-specific architectural rules, Persian UI mandates, or lint constraints that are fed to AI models as high-priority system context.</p>
+          </div>
+          <div class="bg-zinc-900/60 border border-zinc-800 p-5 rounded-xl space-y-2">
+            <div class="text-yellow-400 font-bold text-sm">Responsive URLs</div>
+            <p class="text-zinc-400 font-sans text-xs">Robust word-break and viewport-adaptive containers ensure long repository and MR URLs never break layouts on mobile or desktop.</p>
           </div>
         </div>
       </div>
@@ -831,26 +835,30 @@
       <!-- Persian Section (dir="rtl") -->
       <div dir="rtl" class="text-right space-y-6 border-t border-zinc-900 pt-12">
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-blue-900/60 bg-blue-950/40 text-xs font-mono text-accent">
-          <span>سامانه مدیریت و رجیستری پروژه‌ها (نسخه ۰.۱.۱۴)</span>
+          <span>سامانه مدیریت پروژه‌ها، دستورات سیستمی هوش مصنوعی و طراحی ریسپانسیو (نسخه ۰.۱.۱۹)</span>
         </div>
         <h2 class="text-3xl md:text-4xl font-bold tracking-tight text-white font-sans">
-          موجودیت مستقل پروژه و یکپارچگی بازبینی‌های کُد
+          مدیریت مستقل پروژه، تزریق دستورالعمل‌های اختصاصی به هوش مصنوعی و نمایش ریسپانسیو آدرس‌ها
         </h2>
         <p class="text-zinc-400 text-lg leading-relaxed max-w-4xl font-sans">
-          در این نسخه، <strong>پروژه (Project)</strong> به عنوان یک موجودیت سطح اول به سیستم اضافه شده است. هویت یکتای هر پروژه بر مبنای ترکیب میزبان و مسیر مخزن (<code>gitHost + repositoryPath</code>) تعیین می‌شود؛ بنابراین پروژه‌های هم‌نام در سرورها یا گروه‌های مختلف هرگز تداخل نداشته و از طرف دیگر، ارسال لینک‌های متعدد از Merge Request های یک مخزن بدون ایجاد پروژه‌های تکراری، همگی به همان پروژه متصل و بایگانی می‌گردند.
+          در این نسخه، علاوه بر ثبت هویت یکتای پروژه‌ها بر مبنای <code>gitHost + repositoryPath</code>، امکان **تعریف و ویرایش دستورات سیستمی (System Instructions) اختصاصی برای هر پروژه** فراهم شده است. این دستورات به عنوان کانتکست با اولویت بالا مستقیماً به پرامپت ارکستراتور و تمام ایجنت‌های هوش مصنوعی ارسال می‌شوند تا کدها دقیقاً بر اساس الگوهای اختصاصی، معماری و الزامات زبان تیم شما ارزیابی شوند. همچنین نمایش آدرس‌های طولانی URL در تمام صفحات و دستگاه‌های موبایل کاملاً ریسپانسیو و بهینه‌سازی شد.
         </p>
-        <div class="grid md:grid-cols-3 gap-6 pt-4 text-xs font-sans">
+        <div class="grid md:grid-cols-4 gap-6 pt-4 text-xs font-sans">
           <div class="bg-zinc-900/60 border border-zinc-800 p-5 rounded-xl space-y-2 text-right">
-            <div class="text-accent font-bold text-sm">ثبت دستی و خودکار</div>
-            <p class="text-zinc-400 text-xs leading-normal">امکان ایجاد دستی پروژه با اعتبارسنجی زنده آدرس، و همچنین تشخیص و ساخت خودکار پروژه به محض ورود لینک MR.</p>
+            <div class="text-accent font-bold text-sm">ثبت خودکار و دستی</div>
+            <p class="text-zinc-400 text-xs leading-normal">امکان تعریف دستی پروژه به همراه توضیحات، و تشخیص و ایجاد خودکار با ارسال لینک‌های GitLab و GitHub.</p>
           </div>
           <div class="bg-zinc-900/60 border border-zinc-800 p-5 rounded-xl space-y-2 text-right">
-            <div class="text-green-400 font-bold text-sm">جلوگیری هوشمند از تکرار</div>
-            <p class="text-zinc-400 text-xs leading-normal">نرمال‌سازی آدرس‌ها با حذف پسوند <code>.git</code>، اسلش‌های اضافی و پارامترها برای پیشگیری قطعی از تکرار مخازن.</p>
+            <div class="text-green-400 font-bold text-sm">پیشگیری قطعی از تکرار</div>
+            <p class="text-zinc-400 text-xs leading-normal">نرمال‌سازی کلید یکتا و هدایت تمام درخواست‌های ادغام (MR) مرتبط به یک موجودیت مشخص پروژه.</p>
           </div>
           <div class="bg-zinc-900/60 border border-zinc-800 p-5 rounded-xl space-y-2 text-right">
-            <div class="text-purple-400 font-bold text-sm">زنجیره داده‌ای رابطه‌ای</div>
-            <p class="text-zinc-400 text-xs leading-normal">اتصال ساختاریافته پروژه &larr; درخواست‌های ادغام &larr; بازبینی‌های هوش مصنوعی &larr; امتیازات کیفی.</p>
+            <div class="text-purple-400 font-bold text-sm">دستورات سیستمی AI</div>
+            <p class="text-zinc-400 text-xs leading-normal">امکان ثبت دستورالعمل‌های معماری، امنیتی، نام‌گذاری یا الزامات فارسی که مستقیماً به مدل‌های هوش مصنوعی منتقل می‌شوند.</p>
+          </div>
+          <div class="bg-zinc-900/60 border border-zinc-800 p-5 rounded-xl space-y-2 text-right">
+            <div class="text-yellow-400 font-bold text-sm">طراحی ریسپانسیو آدرس‌ها</div>
+            <p class="text-zinc-400 text-xs leading-normal">شکست خودکار آدرس‌های طولانی (Word-Break) و عدم سرریز افقی در نمایشگرهای موبایل و تبلت.</p>
           </div>
         </div>
       </div>
@@ -885,7 +893,7 @@
 
   <!-- Footer -->
   <footer class="py-8 border-t border-zinc-900 bg-black text-center text-zinc-600 font-mono text-sm">
-    <p>AI Code Review Platform v<span id="app-version">0.1.17</span> • Maintained by <a href="https://github.com/whossein" class="text-zinc-400 hover:text-white" target="_blank">whossein</a></p>
+    <p>AI Code Review Platform v<span id="app-version">0.1.19</span> • Maintained by <a href="https://github.com/whossein" class="text-zinc-400 hover:text-white" target="_blank">whossein</a></p>
   </footer>
 
   <!-- Scroll Animation Script -->

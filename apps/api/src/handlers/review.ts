@@ -27,6 +27,7 @@ export interface ReviewRequest {
   readonly memoryStore?: MemoryStore;
   readonly projectId?: string;
   readonly projectName?: string;
+  readonly customInstructions?: string;
 }
 
 export interface ReviewResponse {
@@ -48,7 +49,14 @@ export async function reviewHandler(
   extraProviders?: readonly LLMProvider[],
   memoryStore?: MemoryStore,
 ): Promise<ReviewResponse> {
-  const { diff, threshold, env = {}, selectedSpecialists } = request;
+  const {
+    diff,
+    threshold,
+    env = {},
+    selectedSpecialists,
+    customInstructions,
+    projectName,
+  } = request;
   const effectiveMemoryStore = memoryStore || request.memoryStore;
 
   if (!diff || typeof diff !== "string" || diff.trim().length === 0) {
@@ -68,6 +76,8 @@ export async function reviewHandler(
       env: mergedEnv,
       ...(Array.isArray(selectedSpecialists) ? { selectedSpecialists } : {}),
       ...(effectiveMemoryStore ? { memoryStore: effectiveMemoryStore } : {}),
+      ...(customInstructions ? { customInstructions } : {}),
+      ...(projectName ? { projectName } : {}),
     },
     extraProviders
   );

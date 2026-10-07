@@ -359,8 +359,12 @@ button:disabled {
 .main-content {
   flex: 1;
   padding: 2rem 2.5rem;
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .mobile-header {
@@ -672,7 +676,8 @@ button:disabled {
 .code-url,
 a.url-link,
 .url-badge,
-code.url-code {
+code.url-code,
+.identity-meta-grid * {
   word-break: break-all !important;
   overflow-wrap: anywhere !important;
   white-space: normal !important;
@@ -688,12 +693,15 @@ code.url-code {
 
 .responsive-url-box * {
   min-width: 0;
+  max-width: 100%;
 }
 
 /* Inputs responsive sizing */
 input[type="url"],
 input[type="text"],
-.form-group input {
+.form-group input,
+.form-group textarea {
+  width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
 }
@@ -737,11 +745,32 @@ input[type="text"],
 
   .detected-repo-box {
     flex-direction: column !important;
-    align-items: flex-start !important;
+    align-items: stretch !important;
   }
 
   .detected-repo-box > button {
     width: 100% !important;
     justify-content: center !important;
+  }
+
+  .identity-meta-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.5rem !important;
+  }
+
+  .identity-meta-grid > div:nth-child(odd) {
+    font-weight: 600;
+    color: var(--accent) !important;
+    margin-top: 0.35rem;
+  }
+}
+
+@media (max-width: 580px) {
+  .radio-cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .view-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
   }
 }

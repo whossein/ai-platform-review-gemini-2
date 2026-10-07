@@ -19,6 +19,7 @@ import {
   listProjectsHandler,
   getProjectDetailsHandler,
   createProjectHandler,
+  updateProjectHandler,
   findOrCreateProjectHandler,
   recordReviewHandler,
   deleteProjectHandler,
@@ -116,6 +117,24 @@ async function startServer() {
     }
   });
 
+  app.patch("/api/projects/:id", async (req, res) => {
+    try {
+      const result = await updateProjectHandler(projectStore, req.params.id, req.body || {});
+      res.status(200).json(result);
+    } catch (err: any) {
+      res.status(err.status || 500).json({ error: err.message || "Failed to update project" });
+    }
+  });
+
+  app.put("/api/projects/:id", async (req, res) => {
+    try {
+      const result = await updateProjectHandler(projectStore, req.params.id, req.body || {});
+      res.status(200).json(result);
+    } catch (err: any) {
+      res.status(err.status || 500).json({ error: err.message || "Failed to update project" });
+    }
+  });
+
   app.delete("/api/projects/:id", async (req, res) => {
     try {
       const result = await deleteProjectHandler(projectStore, req.params.id);
@@ -144,12 +163,36 @@ async function startServer() {
 
   app.post("/api/review", async (req, res) => {
     try {
+      const diffStr = (req.body?.diff || "").trim();
+
+      // Pre-resolve project to inject custom system instructions and guidelines into AI context
+      let preProject: any = undefined;
+      let preMr: any = undefined;
+      try {
+        if (req.body?.projectId) {
+          const fetched = await projectStore.getProject(req.body.projectId);
+          if (fetched) preProject = fetched.project;
+        } else if (diffStr.startsWith("http://") || diffStr.startsWith("https://")) {
+          const auto = await projectStore.findOrCreateFromUrl(diffStr);
+          preProject = auto.project;
+          preMr = auto.mergeRequest;
+        }
+      } catch (e) {
+        console.warn("Pre-review project resolution notice:", e);
+      }
+
+      const customInstructions =
+        req.body?.customInstructions || preProject?.customInstructions;
+      const projectName = req.body?.projectName || preProject?.name;
+
       const result = await reviewHandler(
         {
           diff: req.body?.diff,
           threshold: req.body?.threshold,
           env: req.body?.env || req.body?.envOverrides,
           selectedSpecialists: req.body?.selectedSpecialists,
+          customInstructions,
+          projectName,
         },
         agentRegistry,
         undefined,
@@ -157,17 +200,18 @@ async function startServer() {
       );
 
       // Auto-associate review with project if diff is a URL or if projectId is supplied
-      let associatedProject: any = undefined;
-      let associatedMr: any = undefined;
+      let associatedProject: any = preProject;
+      let associatedMr: any = preMr;
       try {
-        const diffStr = (req.body?.diff || "").trim();
         if (diffStr.startsWith("http://") || diffStr.startsWith("https://")) {
-          const auto = await projectStore.findOrCreateFromUrl(diffStr);
-          associatedProject = auto.project;
-          associatedMr = auto.mergeRequest;
+          if (!associatedProject) {
+            const auto = await projectStore.findOrCreateFromUrl(diffStr);
+            associatedProject = auto.project;
+            associatedMr = auto.mergeRequest;
+          }
           await projectStore.recordReview({
-            projectId: auto.project.id,
-            mergeRequestId: auto.mergeRequest?.id,
+            projectId: associatedProject.id,
+            mergeRequestId: associatedMr?.id,
             model: req.body?.env?.AI_REVIEW_LLM_MODEL || req.body?.env?.AI_REVIEW_LLM_PROVIDER,
             target: diffStr,
             inputMode: "pr",

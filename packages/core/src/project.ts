@@ -64,6 +64,13 @@ export interface Project {
   readonly gitHost: string;
   readonly repositoryPath: string;
   readonly namespace: string;
+  /** Optional project summary or description. */
+  readonly description?: string | undefined;
+  /**
+   * Project-specific system instructions, guidelines, and rules passed to AI
+   * specialist reviewers during code review for this project.
+   */
+  readonly customInstructions?: string | undefined;
   readonly createdAt: IsoTimestamp;
   readonly updatedAt: IsoTimestamp;
 }

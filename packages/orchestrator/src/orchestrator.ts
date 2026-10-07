@@ -87,6 +87,10 @@ export interface RunOptions {
   readonly maxRetries?: number;
   /** Optional custom or persistent memory store. */
   readonly memoryStore?: MemoryStore;
+  /** Optional project-specific custom instructions/guidelines for AI reviewers. */
+  readonly customInstructions?: string;
+  /** Optional project name for branding guidelines. */
+  readonly projectName?: string;
 }
 
 export class ReviewOrchestrator {
@@ -122,13 +126,17 @@ export class ReviewOrchestrator {
       ...(opts.files ? { files: opts.files } : {}),
     });
     let slice: ContextSlice;
+    const instructionsSection = opts.customInstructions?.trim()
+      ? `\n\n--- PROJECT-SPECIFIC SYSTEM INSTRUCTIONS & GUIDELINES (${opts.projectName || "Active Project"}) ---\n${opts.customInstructions.trim()}\nIMPORTANT: The above project-specific instructions MUST be strictly respected and prioritized by all reviewers.\n`
+      : "";
+
     if (built.ok) {
       const sliceRes = await contextEngine.slice({
         handle: built.value.handle,
         tokenBudget: budget.tokenBudget,
       });
       const structural = sliceRes.ok ? sliceRes.value.rendered : "";
-      const rendered = `${opts.diff}\n\n--- context ---\n${structural}`;
+      const rendered = `${opts.diff}${instructionsSection}\n\n--- context ---\n${structural}`;
       slice = {
         handle: built.value.handle,
         version: built.value.version,
@@ -138,12 +146,13 @@ export class ReviewOrchestrator {
         compressed: sliceRes.ok ? sliceRes.value.compressed : false,
       };
     } else {
+      const rendered = `${opts.diff}${instructionsSection}`;
       slice = {
         handle: "ctx.local" as ContextSlice["handle"],
         version: 1,
         files: [],
-        rendered: opts.diff,
-        estimatedTokens: Math.ceil(opts.diff.length / 4),
+        rendered,
+        estimatedTokens: Math.ceil(rendered.length / 4),
         compressed: false,
       };
     }

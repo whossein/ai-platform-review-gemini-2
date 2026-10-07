@@ -19,7 +19,7 @@ The **AI Code Review Platform** is a powerful, multi-agent automated code review
 - 🎯 **Smart Routing & Planner**: Evaluates diffs and changed file extensions to invoke only relevant specialists, minimizing latency and LLM token usage.
 - 🔌 **Provider-Agnostic LLM Engine**: Native support for **Google Gemini, OpenAI, Anthropic, OpenRouter, Avalai, DeepSeek, Ollama (Local AI), Azure**, and custom OpenAI-compatible proxies.
 - 🎛️ **Provider Management**: Toggle providers on/off, set active defaults, fetch models lists, and control API usage budgets.
-- 📁 **Project Registry & Repository Management (v0.1.17)**: First-class Project entities uniquely identified by `gitHost + repositoryPath`. Supports manual registration or automatic on-the-fly creation upon Merge Request submission, with zero-duplicate normalization and relational review tracking. Accessible directly from the main sidebar navigation with responsive layout support for long repository and MR URLs.
+- 📁 **Project Registry, AI System Instructions & Responsive Layout (v0.1.19)**: First-class Project entities uniquely identified by `gitHost + repositoryPath`. Supports custom per-project AI System Instructions and architectural guidelines injected directly into model prompts during reviews. Includes responsive word-break styling for long URLs on both Home and Projects views, and full main/sidebar navigation support.
 - 🧠 **Durable Multi-Scope Memory**: Crash-safe persistent memory partitioned by scope (`session`, `review`, `repository`, `organization`, `global`) surviving server restarts (Phase 5).
 - 🦊 **GitLab Integration**: Fetches MR diffs and publishes inline discussions and review summaries directly via GitLab REST API v4.
 - 🖥️ **Interactive Web & Desktop UI**: Real-time review execution with Server-Sent Events (SSE), interactive diff visualizer, historical review archive, and Electron desktop packaging.
@@ -38,7 +38,7 @@ The **AI Code Review Platform** is a powerful, multi-agent automated code review
 - 🎯 **مسیریابی هوشمند**: بررسی نوع فایل‌های تغییر یافته و ارجاع آن‌ها فقط به متخصص مربوطه برای کاهش هزینه و افزایش سرعت.
 - 🔌 **پشتیبانی از انواع هوش مصنوعی**: پشتیبانی کامل از **Gemini، OpenAI، Anthropic، OpenRouter، سیستم ایرانی Avalai، DeepSeek، و Ollama (برای پردازش آفلاین/رایگان)**.
 - 🎛️ **مدیریت پیشرفته سرویس‌دهنده‌ها**: قابلیت روشن/خاموش کردن، تعیین هوش مصنوعی پیش‌فرض، دریافت مستقیم لیست مدل‌ها و کنترل سقف بودجه (Budget Limit).
-- 📁 **رجیستری و مدیریت هوشمند پروژه‌ها (نسخه ۰.۱.۱۷)**: موجودیت سطح اول پروژه با شناسه یکتای `gitHost + repositoryPath`، امکان ثبت دستی و ایجاد خودکار با ارسال لینک Merge Request، جلوگیری قطعی از مخازن تکراری، دسترسی مستقیم از سایدبار و طراحی کاملاً واکنش‌گرا (Responsive) برای لینک‌های طولانی مخازن و MRها.
+- 📁 **رجیستری پروژه‌ها، دستورات سیستمی اختصاصی هوش مصنوعی و طراحی ریسپانسیو (نسخه ۰.۱.۱۹)**: موجودیت سطح اول پروژه با شناسه یکتای `gitHost + repositoryPath`، امکان ثبت دستی و ایجاد خودکار، تعیین دستورالعمل‌ها و کانتکست سیستمی اختصاصی برای هر پروژه (انتقال مستقیم به پرامپت ایجنت‌های هوش مصنوعی)، طراحی کاملاً ریسپانسیو و بدون سرریز برای آدرس‌های طولانی URL در تمام صفحات و دسترسی مستقیم از منوی سایدبار.
 - 🦊 **یکپارچگی با گیت‌لب (GitLab)**: امکان دریافت مستقیم Merge Request ها و ثبت خودکار کامنت روی کدهای تغییر یافته در GitLab.
 - 🖥️ **رابط کاربری تعاملی (وب و دسکتاپ)**: مشاهده زنده فرآیند بررسی، تاریخچه کد رویوها و پشتیبانی از نسخه دسکتاپ (Electron).
 
@@ -127,4 +127,4 @@ Visit [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## 📄 License
 
-Private repository maintained for automated AI code review workflows. Version **0.1.14**.
+Private repository maintained for automated AI code review workflows. Version **0.1.19**.
