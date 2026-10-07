@@ -9,6 +9,8 @@ export interface HistoryRecord {
   target: string; // The URL or path or 'Custom Diff'
   model: string;
   result: ReviewResponse;
+  projectId?: string | undefined;
+  mergeRequestId?: string | undefined;
 }
 
 const STORAGE_KEY = "ai_review_history";
@@ -19,6 +21,8 @@ export function saveReviewToHistory(
   target: string,
   model: string,
   result: ReviewResponse,
+  projectId?: string,
+  mergeRequestId?: string,
 ): void {
   try {
     const existing = getHistory();
@@ -29,6 +33,8 @@ export function saveReviewToHistory(
       target,
       model,
       result,
+      projectId: projectId || result.project?.id,
+      mergeRequestId: mergeRequestId || result.mergeRequest?.id,
     };
 
     existing.unshift(newRecord);

@@ -32,5 +32,8 @@ export {
   parseGitHubPrUrl,
   parseChangeRequestUrl,
   baseUrlFromChangeRequestUrl,
+  extractRepositoryIdentity,
+  isSameRepository,
+  extractMergeRequestNumber,
 } from "./url.js";
 export { resolveDiffInput, parseDiffToFiles } from "./resolver.js";

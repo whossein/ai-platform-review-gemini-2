@@ -41,3 +41,13 @@ export {
   type ApplyLocalRequest,
   type ApplyLocalResponse,
 } from "./apply-local.js";
+
+export {
+  listProjectsHandler,
+  getProjectDetailsHandler,
+  createProjectHandler,
+  findOrCreateProjectHandler,
+  recordReviewHandler,
+  deleteProjectHandler,
+} from "./projects.js";
+

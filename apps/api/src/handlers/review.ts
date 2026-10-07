@@ -2,6 +2,7 @@
  * Review handler — Execute multi-agent code review pipeline.
  *
  * Accepts a diff string and optional threshold, executes the full review pipeline,
+ * automatically detects or links projects, updates persistent project statistics,
  * and returns markdown/JSON reports with issue details and metrics.
  *
  * This handler encapsulates the review logic shared between:
@@ -11,7 +12,12 @@
 
 import { runReview } from "@ai-review/orchestrator";
 import { resolveDiffInput, parseDiffToFiles } from "@ai-review/git";
-import type { AgentRegistry, LLMProvider, MemoryStore } from "@ai-review/core";
+import type {
+  AgentRegistry,
+  LLMProvider,
+  MemoryStore,
+  Project,
+} from "@ai-review/core";
 
 export interface ReviewRequest {
   readonly diff: string;
@@ -19,6 +25,8 @@ export interface ReviewRequest {
   readonly env?: Record<string, string>;
   readonly selectedSpecialists?: readonly string[];
   readonly memoryStore?: MemoryStore;
+  readonly projectId?: string;
+  readonly projectName?: string;
 }
 
 export interface ReviewResponse {
@@ -31,13 +39,14 @@ export interface ReviewResponse {
     cacheHits: number;
     cacheMisses: number;
   };
+  project?: Project;
 }
 
 export async function reviewHandler(
   request: ReviewRequest,
   agentRegistry: AgentRegistry,
   extraProviders?: readonly LLMProvider[],
-  memoryStore?: MemoryStore
+  memoryStore?: MemoryStore,
 ): Promise<ReviewResponse> {
   const { diff, threshold, env = {}, selectedSpecialists } = request;
   const effectiveMemoryStore = memoryStore || request.memoryStore;
@@ -46,7 +55,7 @@ export async function reviewHandler(
     throw new Error('field "diff" is required');
   }
 
-  const mergedEnv: Record<string, string> = { ...process.env as Record<string, string>, ...env };
+  const mergedEnv: Record<string, string> = { ...(process.env as Record<string, string>), ...env };
   const rawDiff = await resolveDiffInput(diff, mergedEnv);
   const parsedFiles = parseDiffToFiles(rawDiff);
 

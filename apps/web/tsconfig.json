@@ -12,6 +12,7 @@
     "exactOptionalPropertyTypes": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
+    "noEmit": true,
     "types": ["vite/client"]
   },
   "include": ["src"]

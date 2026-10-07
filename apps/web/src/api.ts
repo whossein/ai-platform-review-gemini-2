@@ -35,6 +35,8 @@ export interface ReviewResponse {
     readonly totalCompletionTokens: number;
     readonly totalCostUsd: number;
   };
+  readonly project?: Project | undefined;
+  readonly mergeRequest?: ProjectMergeRequest | undefined;
 }
 
 export interface EstimateResponse {
@@ -72,6 +74,8 @@ export async function requestReview(
   env?: Record<string, string>,
   selectedSpecialists?: readonly string[],
   signal?: AbortSignal,
+  projectId?: string,
+  mergeRequestId?: string,
 ): Promise<ReviewResponse> {
   const reqInit: RequestInit = {
     method: "POST",
@@ -81,6 +85,8 @@ export async function requestReview(
       ...(threshold !== undefined ? { threshold } : {}),
       ...(env ? { env } : {}),
       ...(selectedSpecialists ? { selectedSpecialists } : {}),
+      ...(projectId ? { projectId } : {}),
+      ...(mergeRequestId ? { mergeRequestId } : {}),
     }),
   };
   if (signal) {
@@ -166,3 +172,136 @@ export async function requestTestProvider(config: {
     }))) as TestProviderResult;
   return data;
 }
+
+// ----------------------------------------------------
+// Project Registry & Management API Client
+// ----------------------------------------------------
+
+export interface Project {
+  readonly id: string;
+  readonly name: string;
+  readonly repositoryUrl: string;
+  readonly gitHost: string;
+  readonly repositoryPath: string;
+  readonly namespace: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface ProjectMergeRequest {
+  readonly id: string;
+  readonly projectId: string;
+  readonly mrNumber: string;
+  readonly url: string;
+  readonly title?: string | undefined;
+  readonly sourceBranch?: string | undefined;
+  readonly targetBranch?: string | undefined;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface ProjectReviewRecord {
+  readonly id: string;
+  readonly projectId: string;
+  readonly mergeRequestId?: string | undefined;
+  readonly timestamp: number;
+  readonly inputMode: string;
+  readonly target: string;
+  readonly model: string;
+  readonly score?: number | undefined;
+  readonly issuesCount: number;
+  readonly acceptedCount: number;
+  readonly criticalCount: number;
+  readonly highCount: number;
+  readonly summaryMarkdown?: string | undefined;
+}
+
+export interface ProjectWithStats extends Project {
+  readonly mergeRequestCount: number;
+  readonly reviewCount: number;
+  readonly latestReview?: ProjectReviewRecord | undefined;
+  readonly averageScore?: number | undefined;
+}
+
+export interface ProjectDetailsResponse {
+  readonly project: Project;
+  readonly mergeRequests: ProjectMergeRequest[];
+  readonly reviews: ProjectReviewRecord[];
+  readonly stats: {
+    readonly mergeRequestCount: number;
+    readonly reviewCount: number;
+    readonly averageScore?: number | undefined;
+    readonly latestReview?: ProjectReviewRecord | undefined;
+  };
+}
+
+export async function fetchProjects(): Promise<ProjectWithStats[]> {
+  const res = await fetch("/api/projects");
+  if (!res.ok) {
+    throw new Error(`Failed to fetch projects (${res.status})`);
+  }
+  const data = await res.json();
+  return data.projects || [];
+}
+
+export async function fetchProjectDetails(
+  id: string,
+): Promise<ProjectDetailsResponse> {
+  const res = await fetch(`/api/projects/${encodeURIComponent(id)}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Project not found (${res.status})`);
+  }
+  return await res.json();
+}
+
+export async function createProject(params: {
+  name?: string | undefined;
+  repositoryUrl: string;
+}): Promise<Project> {
+  const res = await fetch("/api/projects", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.error || `Failed to create project (${res.status})`);
+    (err as any).code = data.code;
+    (err as any).existingProject = data.existingProject;
+    throw err;
+  }
+  return data.project;
+}
+
+export async function findOrCreateProjectFromUrl(
+  url: string,
+  name?: string,
+): Promise<{
+  project: Project;
+  mergeRequest?: ProjectMergeRequest;
+  created: boolean;
+}> {
+  const res = await fetch("/api/projects/find-or-create", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ url, ...(name ? { name } : {}) }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `Failed to resolve project from URL (${res.status})`);
+  }
+  return await res.json();
+}
+
+export async function deleteProject(id: string): Promise<boolean> {
+  const res = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `Failed to delete project (${res.status})`);
+  }
+  return true;
+}
+

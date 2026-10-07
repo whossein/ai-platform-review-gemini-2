@@ -7,26 +7,43 @@ import {
   Menu,
   X,
   Activity,
+  FolderGit2,
 } from "lucide-react";
 import { ReviewView } from "./ReviewView.js";
 import { SettingsView } from "./SettingsView.js";
 import { SkillsView } from "./SkillsView.js";
 import { HistoryView } from "./HistoryView.js";
 import { HowItWorksView } from "./HowItWorksView.js";
+import { ProjectsView } from "./ProjectsView.js";
 import { useAppConfig } from "./Settings.js";
 
 export function App(): JSX.Element {
   const [activeTab, setActiveTab] = useState("review");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [reviewTargetUrl, setReviewTargetUrl] = useState<string | undefined>(undefined);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [config] = useAppConfig();
 
   const tabs = [
     { id: "howitworks", label: "How It Works", icon: Activity },
     { id: "review", label: "Code Review", icon: Code },
+    { id: "projects", label: "Projects", icon: FolderGit2 },
     { id: "skills", label: "Skills & Rules", icon: Wrench },
     { id: "history", label: "History", icon: History },
     { id: "settings", label: "Settings", icon: Settings },
   ];
+
+  const handleNavigateToReview = (url: string) => {
+    setReviewTargetUrl(url);
+    setActiveTab("review");
+    setIsMobileMenuOpen(false);
+  };
+
+  const handleNavigateToProjects = (projectId?: string) => {
+    setSelectedProjectId(projectId || null);
+    setActiveTab("projects");
+    setIsMobileMenuOpen(false);
+  };
 
   return (
     <div className="dashboard-layout">
@@ -93,6 +110,9 @@ export function App(): JSX.Element {
                 key={tab.id}
                 className={`nav-item ${activeTab === tab.id ? "active" : ""}`}
                 onClick={() => {
+                  if (tab.id === "projects") {
+                    setSelectedProjectId(null);
+                  }
                   setActiveTab(tab.id);
                   setIsMobileMenuOpen(false);
                 }}
@@ -108,7 +128,19 @@ export function App(): JSX.Element {
       {/* Main Content Area */}
       <main className="main-content">
         {activeTab === "howitworks" && <HowItWorksView />}
-        {activeTab === "review" && <ReviewView />}
+        {activeTab === "review" && (
+          <ReviewView
+            initialPrUrl={reviewTargetUrl}
+            onNavigateToProjects={handleNavigateToProjects}
+          />
+        )}
+        {activeTab === "projects" && (
+          <ProjectsView
+            initialProjectId={selectedProjectId}
+            onSelectProject={setSelectedProjectId}
+            onNavigateToReview={handleNavigateToReview}
+          />
+        )}
         {activeTab === "skills" && <SkillsView />}
         {activeTab === "history" && <HistoryView />}
         {activeTab === "settings" && <SettingsView />}

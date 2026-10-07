@@ -798,6 +798,65 @@
     </div>
   </section>
 
+  <!-- SECTION: PROJECT REGISTRY & MANAGEMENT (BILINGUAL) -->
+  <section class="py-24 px-6 bg-zinc-950 border-t border-zinc-900" id="project-registry">
+    <div class="max-w-6xl mx-auto space-y-16 reveal">
+      <!-- English Section (dir="ltr") -->
+      <div dir="ltr" class="text-left space-y-6">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-blue-900/60 bg-blue-950/40 text-xs font-mono text-accent">
+          <span>PROJECT REGISTRY & REPOSITORY MANAGEMENT (v0.1.17)</span>
+        </div>
+        <h2 class="text-3xl md:text-4xl font-bold tracking-tight text-white">
+          First-Class Project Entities & Relational Reviews
+        </h2>
+        <p class="text-zinc-400 text-lg leading-relaxed max-w-4xl">
+          The system introduces first-class <strong>Project</strong> entities governed strictly by repository identity: <code>gitHost + repositoryPath</code> (e.g. <code>gitlab.company.com/frontend/storefront-pwa</code>). Unlike simplistic name-based lookups, identical repo names across different namespaces or git servers remain strictly isolated, while differing MR URLs from the same repo map deterministically to the identical project entity.
+        </p>
+        <div class="grid md:grid-cols-3 gap-6 pt-4 font-mono text-xs">
+          <div class="bg-zinc-900/60 border border-zinc-800 p-5 rounded-xl space-y-2">
+            <div class="text-accent font-bold text-sm">Dual Ingestion Modes</div>
+            <p class="text-zinc-400 font-sans text-xs">Register projects manually from the UI or let the system auto-create and link them when any MR/PR URL is submitted.</p>
+          </div>
+          <div class="bg-zinc-900/60 border border-zinc-800 p-5 rounded-xl space-y-2">
+            <div class="text-green-400 font-bold text-sm">Zero-Duplicate Engine</div>
+            <p class="text-zinc-400 font-sans text-xs">Normalized path hashing ignores <code>.git</code> extensions, trailing slashes, and MR subpaths, guaranteeing clean deduplication.</p>
+          </div>
+          <div class="bg-zinc-900/60 border border-zinc-800 p-5 rounded-xl space-y-2">
+            <div class="text-purple-400 font-bold text-sm">Relational Tracking</div>
+            <p class="text-zinc-400 font-sans text-xs">A unified hierarchy: Project &rarr; Merge Requests &rarr; Review Executions &rarr; Quality Scores & Trends.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Persian Section (dir="rtl") -->
+      <div dir="rtl" class="text-right space-y-6 border-t border-zinc-900 pt-12">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-blue-900/60 bg-blue-950/40 text-xs font-mono text-accent">
+          <span>سامانه مدیریت و رجیستری پروژه‌ها (نسخه ۰.۱.۱۴)</span>
+        </div>
+        <h2 class="text-3xl md:text-4xl font-bold tracking-tight text-white font-sans">
+          موجودیت مستقل پروژه و یکپارچگی بازبینی‌های کُد
+        </h2>
+        <p class="text-zinc-400 text-lg leading-relaxed max-w-4xl font-sans">
+          در این نسخه، <strong>پروژه (Project)</strong> به عنوان یک موجودیت سطح اول به سیستم اضافه شده است. هویت یکتای هر پروژه بر مبنای ترکیب میزبان و مسیر مخزن (<code>gitHost + repositoryPath</code>) تعیین می‌شود؛ بنابراین پروژه‌های هم‌نام در سرورها یا گروه‌های مختلف هرگز تداخل نداشته و از طرف دیگر، ارسال لینک‌های متعدد از Merge Request های یک مخزن بدون ایجاد پروژه‌های تکراری، همگی به همان پروژه متصل و بایگانی می‌گردند.
+        </p>
+        <div class="grid md:grid-cols-3 gap-6 pt-4 text-xs font-sans">
+          <div class="bg-zinc-900/60 border border-zinc-800 p-5 rounded-xl space-y-2 text-right">
+            <div class="text-accent font-bold text-sm">ثبت دستی و خودکار</div>
+            <p class="text-zinc-400 text-xs leading-normal">امکان ایجاد دستی پروژه با اعتبارسنجی زنده آدرس، و همچنین تشخیص و ساخت خودکار پروژه به محض ورود لینک MR.</p>
+          </div>
+          <div class="bg-zinc-900/60 border border-zinc-800 p-5 rounded-xl space-y-2 text-right">
+            <div class="text-green-400 font-bold text-sm">جلوگیری هوشمند از تکرار</div>
+            <p class="text-zinc-400 text-xs leading-normal">نرمال‌سازی آدرس‌ها با حذف پسوند <code>.git</code>، اسلش‌های اضافی و پارامترها برای پیشگیری قطعی از تکرار مخازن.</p>
+          </div>
+          <div class="bg-zinc-900/60 border border-zinc-800 p-5 rounded-xl space-y-2 text-right">
+            <div class="text-purple-400 font-bold text-sm">زنجیره داده‌ای رابطه‌ای</div>
+            <p class="text-zinc-400 text-xs leading-normal">اتصال ساختاریافته پروژه &larr; درخواست‌های ادغام &larr; بازبینی‌های هوش مصنوعی &larr; امتیازات کیفی.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- SECTION 14 / FINAL CTA -->
   <section class="py-32 px-6 bg-zinc-950 border-t border-zinc-900 text-center relative overflow-hidden">
     <div class="absolute inset-0 bg-grid opacity-30 z-0 pointer-events-none"></div>
@@ -826,7 +885,7 @@
 
   <!-- Footer -->
   <footer class="py-8 border-t border-zinc-900 bg-black text-center text-zinc-600 font-mono text-sm">
-    <p>AI Code Review Platform v<span id="app-version">0.1.13</span> • Maintained by <a href="https://github.com/whossein" class="text-zinc-400 hover:text-white" target="_blank">whossein</a></p>
+    <p>AI Code Review Platform v<span id="app-version">0.1.17</span> • Maintained by <a href="https://github.com/whossein" class="text-zinc-400 hover:text-white" target="_blank">whossein</a></p>
   </footer>
 
   <!-- Scroll Animation Script -->

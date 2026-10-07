@@ -1,10 +1,12 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import {
   FileCode,
   GitPullRequest,
   Archive,
   Folder,
   GitBranch,
+  FolderGit2,
+  ArrowRight,
 } from "lucide-react";
 import {
   requestReview,
@@ -13,7 +15,10 @@ import {
   type ReviewIssue,
   type ReviewResponse,
   type EstimateResponse,
+  type Project,
+  type ProjectMergeRequest,
 } from "./api.js";
+import { parseRepositoryUrl } from "./url-helper.js";
 import { useAppConfig } from "./Settings.js";
 
 const SAMPLE_DIFF = `diff --git a/src/UserList.tsx b/src/UserList.tsx
@@ -143,15 +148,25 @@ function buildEnvOverrides(config: any, language: string) {
 
 type InputMode = "diff" | "pr" | "zip" | "path" | "repo";
 
-export function ReviewView(): JSX.Element {
+export interface ReviewViewProps {
+  initialPrUrl?: string | undefined;
+  initialMode?: InputMode | undefined;
+  onNavigateToProjects?: ((projectId?: string) => void) | undefined;
+}
+
+export function ReviewView({
+  initialPrUrl,
+  initialMode,
+  onNavigateToProjects,
+}: ReviewViewProps = {}): JSX.Element {
   const [inputMode, setInputMode] = useState<InputMode>(
-    () => (localStorage.getItem("rv_inputMode") as InputMode) || "diff",
+    () => initialMode || (localStorage.getItem("rv_inputMode") as InputMode) || "diff",
   );
   const [diff, setDiff] = useState<string>(
     () => localStorage.getItem("rv_diff") || SAMPLE_DIFF,
   );
   const [prUrl, setPrUrl] = useState<string>(
-    () => localStorage.getItem("rv_prUrl") || "",
+    () => initialPrUrl || localStorage.getItem("rv_prUrl") || "",
   );
   const [zipFile, setZipFile] = useState<File | null>(null);
   const [localPath, setLocalPath] = useState<string>(
@@ -160,6 +175,50 @@ export function ReviewView(): JSX.Element {
   const [repoUrl, setRepoUrl] = useState<string>(
     () => localStorage.getItem("rv_repoUrl") || "",
   );
+
+  const [associatedProject, setAssociatedProject] = useState<Project | null>(null);
+  const [associatedMr, setAssociatedMr] = useState<ProjectMergeRequest | null>(null);
+
+  // Sync initialPrUrl if prop changes
+  useEffect(() => {
+    if (initialPrUrl) {
+      setPrUrl(initialPrUrl);
+      setInputMode("pr");
+    }
+  }, [initialPrUrl]);
+
+  // Real-time parsed repository info
+  const parsedPrRepo = useMemo(() => {
+    return prUrl ? parseRepositoryUrl(prUrl) : null;
+  }, [prUrl]);
+
+  // Auto-resolve or find project when prUrl is entered
+  useEffect(() => {
+    if (!prUrl.trim() || inputMode !== "pr") {
+      return;
+    }
+    const parsed = parseRepositoryUrl(prUrl);
+    if (!parsed) return;
+
+    let isCurrent = true;
+    const timer = setTimeout(async () => {
+      try {
+        const { findOrCreateProjectFromUrl } = await import("./api.js");
+        const res = await findOrCreateProjectFromUrl(prUrl.trim());
+        if (isCurrent && res) {
+          if (res.project) setAssociatedProject(res.project);
+          if (res.mergeRequest) setAssociatedMr(res.mergeRequest);
+        }
+      } catch (err) {
+        // Fallback gracefully
+      }
+    }, 300);
+
+    return () => {
+      isCurrent = false;
+      clearTimeout(timer);
+    };
+  }, [prUrl, inputMode]);
 
   const [threshold, setThreshold] = useState<number>(() => {
     const t = localStorage.getItem("rv_threshold");
@@ -453,6 +512,8 @@ export function ReviewView(): JSX.Element {
     setResult(null);
 
     let diffToReview = diff;
+    let autoProjectId: string | undefined = undefined;
+    let autoMergeRequestId: string | undefined = undefined;
 
     if (inputMode === "pr") {
       if (!prUrl.trim()) {
@@ -461,6 +522,18 @@ export function ReviewView(): JSX.Element {
         return;
       }
       diffToReview = prUrl.trim();
+
+      // Automatically find or create Project and associate MR
+      try {
+        const { findOrCreateProjectFromUrl } = await import("./api.js");
+        const auto = await findOrCreateProjectFromUrl(prUrl.trim());
+        autoProjectId = auto.project.id;
+        autoMergeRequestId = auto.mergeRequest?.id;
+        setAssociatedProject(auto.project);
+        if (auto.mergeRequest) setAssociatedMr(auto.mergeRequest);
+      } catch (err) {
+        console.warn("Could not pre-resolve project from MR URL:", err);
+      }
     }
 
     if (inputMode === "zip") {
@@ -510,8 +583,12 @@ export function ReviewView(): JSX.Element {
         envOverrides,
         Array.from(selectedAgents),
         controller.signal,
+        autoProjectId,
+        autoMergeRequestId,
       );
       setResult(res);
+      if (res.project) setAssociatedProject(res.project);
+      if (res.mergeRequest) setAssociatedMr(res.mergeRequest);
 
       try {
         const { saveReviewToHistory } = await import("./history.js");
@@ -527,7 +604,14 @@ export function ReviewView(): JSX.Element {
           config.AI_REVIEW_LLM_MODEL ||
           config.AI_REVIEW_LLM_PROVIDER ||
           "Unknown Model";
-        saveReviewToHistory(mode, target, usedModel, res);
+        saveReviewToHistory(
+          mode,
+          target,
+          usedModel,
+          res,
+          autoProjectId || res.project?.id,
+          autoMergeRequestId || res.mergeRequest?.id,
+        );
       } catch (e) {
         console.warn("Failed to save to history", e);
       }
@@ -775,16 +859,157 @@ export function ReviewView(): JSX.Element {
               type="url"
               value={prUrl}
               onChange={(e) => setPrUrl(e.target.value)}
-              placeholder="https://github.com/org/repo/pull/123 or GitLab MR url"
+              placeholder="https://gitlab.company.com/ecommerce/storefront/-/merge_requests/123 or GitHub PR URL"
               style={{
                 width: "100%",
+                maxWidth: "100%",
+                boxSizing: "border-box",
                 background: "var(--bg)",
                 color: "var(--text)",
                 border: "1px solid var(--border)",
                 borderRadius: "6px",
                 padding: "0.75rem",
+                wordBreak: "break-all",
               }}
             />
+
+            {parsedPrRepo && (
+              <div
+                className="detected-repo-box responsive-url-box"
+                style={{
+                  marginTop: "0.75rem",
+                  background: "var(--panel)",
+                  border: "1px solid rgba(59, 130, 246, 0.4)",
+                  borderRadius: "8px",
+                  padding: "0.85rem 1rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: "0.75rem",
+                  minWidth: 0,
+                  maxWidth: "100%",
+                  boxSizing: "border-box",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", minWidth: 0, flex: "1 1 240px", maxWidth: "100%" }}>
+                  <div
+                    style={{
+                      background: "rgba(59, 130, 246, 0.15)",
+                      color: "var(--accent)",
+                      padding: "0.4rem",
+                      borderRadius: "6px",
+                      marginTop: "0.15rem",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <FolderGit2 size={20} />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", minWidth: 0, flex: 1, maxWidth: "100%" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", minWidth: 0, maxWidth: "100%" }}>
+                      <span style={{ color: "var(--muted)", fontSize: "0.85rem", fontWeight: 500, flexShrink: 0 }}>
+                        Project:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onNavigateToProjects &&
+                          onNavigateToProjects(associatedProject?.id)
+                        }
+                        style={{
+                          background: "none",
+                          border: "none",
+                          padding: 0,
+                          cursor: onNavigateToProjects ? "pointer" : "default",
+                          color: "var(--accent)",
+                          fontWeight: 700,
+                          fontSize: "0.95rem",
+                          textDecoration: onNavigateToProjects ? "underline" : "none",
+                          textUnderlineOffset: "3px",
+                          wordBreak: "break-word",
+                          textAlign: "left",
+                        }}
+                        title="Click to view Project Details"
+                      >
+                        {associatedProject?.name || parsedPrRepo.name}
+                      </button>
+                      {parsedPrRepo.mrNumber && (
+                        <span
+                          style={{
+                            background: "rgba(59, 130, 246, 0.15)",
+                            color: "var(--accent)",
+                            padding: "0.15rem 0.5rem",
+                            borderRadius: "4px",
+                            fontWeight: 600,
+                            fontSize: "0.75rem",
+                            flexShrink: 0,
+                          }}
+                        >
+                          MR #{parsedPrRepo.mrNumber}
+                        </span>
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: "0.82rem",
+                        color: "var(--muted)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.35rem",
+                        flexWrap: "wrap",
+                        minWidth: 0,
+                        maxWidth: "100%",
+                      }}
+                    >
+                      <span style={{ flexShrink: 0 }}>Repository:</span>
+                      <span
+                        className="break-url"
+                        style={{
+                          color: "var(--text)",
+                          fontFamily: "ui-monospace, monospace",
+                          fontWeight: 500,
+                          wordBreak: "break-all",
+                          overflowWrap: "anywhere",
+                          minWidth: 0,
+                          maxWidth: "100%",
+                        }}
+                      >
+                        {associatedProject
+                          ? `${associatedProject.gitHost}/${associatedProject.repositoryPath}`
+                          : `${parsedPrRepo.gitHost}/${parsedPrRepo.repositoryPath}`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {onNavigateToProjects && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onNavigateToProjects(associatedProject?.id)
+                    }
+                    style={{
+                      background: "var(--bg)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text)",
+                      borderRadius: "6px",
+                      padding: "0.4rem 0.85rem",
+                      fontSize: "0.8rem",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                      fontWeight: 500,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <span>Project Details</span>
+                    <ArrowRight size={13} />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1638,9 +1863,80 @@ export function ReviewView(): JSX.Element {
               flexDirection: language === "fa" ? "row-reverse" : "row",
             }}
           >
-            <div dir="ltr">
-              <strong>{result.accepted}</strong> accepted / {result.total} total
-              findings
+            <div dir="ltr" style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+              <span>
+                <strong>{result.accepted}</strong> accepted / {result.total} total findings
+              </span>
+              {(result.project || associatedProject) && (
+                <div
+                  className="responsive-url-box"
+                  style={{
+                    background: "rgba(59, 130, 246, 0.15)",
+                    border: "1px solid rgba(59, 130, 246, 0.35)",
+                    padding: "0.35rem 0.75rem",
+                    borderRadius: "6px",
+                    fontSize: "0.82rem",
+                    display: "flex",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: "0.45rem",
+                    minWidth: 0,
+                    maxWidth: "100%",
+                  }}
+                >
+                  <FolderGit2 size={15} style={{ color: "var(--accent)", flexShrink: 0 }} />
+                  <span style={{ color: "var(--muted)", flexShrink: 0 }}>Project:</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onNavigateToProjects &&
+                      onNavigateToProjects((result.project || associatedProject)?.id)
+                    }
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                      color: "var(--accent)",
+                      fontWeight: 700,
+                      cursor: onNavigateToProjects ? "pointer" : "default",
+                      textDecoration: onNavigateToProjects ? "underline" : "none",
+                      textUnderlineOffset: "2px",
+                      fontSize: "0.82rem",
+                      wordBreak: "break-word",
+                    }}
+                    title="Click to view Project Details"
+                  >
+                    {(result.project || associatedProject)?.name}
+                  </button>
+                  <span
+                    className="break-url"
+                    style={{
+                      color: "var(--muted)",
+                      fontFamily: "monospace",
+                      fontSize: "0.75rem",
+                      wordBreak: "break-all",
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    ({(result.project || associatedProject)?.gitHost}/{(result.project || associatedProject)?.repositoryPath})
+                  </span>
+                  {(result.mergeRequest || associatedMr) && (
+                    <span
+                      style={{
+                        background: "rgba(59, 130, 246, 0.25)",
+                        color: "var(--accent)",
+                        padding: "0.1rem 0.4rem",
+                        borderRadius: "4px",
+                        fontWeight: 600,
+                        fontSize: "0.75rem",
+                        flexShrink: 0,
+                      }}
+                    >
+                      MR #{(result.mergeRequest || associatedMr)?.mrNumber}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <div
               style={{

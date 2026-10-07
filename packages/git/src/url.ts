@@ -6,7 +6,7 @@
  * GitHub/Azure/Bitbucket branches without changing callers.
  */
 
-import type { ChangeRequestRef } from "@ai-review/core";
+import type { ChangeRequestRef, ProjectRepositoryIdentity } from "@ai-review/core";
 
 /**
  * Parses a GitLab MR URL into a `ChangeRequestRef`.
@@ -101,3 +101,131 @@ export function baseUrlFromChangeRequestUrl(url: string): string | undefined {
     return undefined;
   }
 }
+
+/**
+ * Extracts and normalizes repository identity from any repository or change-request URL.
+ * Handles self-hosted GitLab, GitLab.com, GitHub, GitHub Enterprise, Bitbucket, Azure,
+ * SSH git formats, and normalizes out .git suffixes, trailing slashes, and MR/PR subpaths.
+ */
+export function extractRepositoryIdentity(
+  input: string,
+): ProjectRepositoryIdentity | undefined {
+  if (!input || typeof input !== "string") return undefined;
+  const trimmed = input.trim();
+  if (!trimmed) return undefined;
+
+  let protocol = "https:";
+  let host = "";
+  let rawPath = "";
+
+  // Handle SSH format e.g. git@gitlab.com:front-end/pwa/app.git
+  const sshMatch = /^git@([^:]+):(.+)$/.exec(trimmed);
+  if (sshMatch && sshMatch[1] && sshMatch[2]) {
+    host = sshMatch[1];
+    rawPath = "/" + sshMatch[2];
+  } else {
+    try {
+      const urlToParse = /^[a-zA-Z]+:\/\//.test(trimmed)
+        ? trimmed
+        : `https://${trimmed}`;
+      const parsed = new URL(urlToParse);
+      protocol = parsed.protocol;
+      host = parsed.host; // host includes port if present (e.g. host:8443)
+      rawPath = parsed.pathname;
+    } catch {
+      return undefined;
+    }
+  }
+
+  if (!host) return undefined;
+
+  let cleanPath = rawPath;
+
+  // Strip GitLab MR subpaths: /-/merge_requests/123 or /merge_requests/123
+  const glMrMatch = cleanPath.indexOf("/-/merge_requests/");
+  if (glMrMatch !== -1) {
+    cleanPath = cleanPath.substring(0, glMrMatch);
+  } else {
+    const glOldMrMatch = cleanPath.indexOf("/merge_requests/");
+    if (glOldMrMatch !== -1) {
+      cleanPath = cleanPath.substring(0, glOldMrMatch);
+    }
+  }
+
+  // Strip GitHub PR subpaths: /pull/123 or /pulls
+  const ghPullMatch = cleanPath.search(/\/pull\/\d+/);
+  if (ghPullMatch !== -1) {
+    cleanPath = cleanPath.substring(0, ghPullMatch);
+  } else {
+    const ghPullsMatch = cleanPath.search(/\/pulls(?:\/|$)/);
+    if (ghPullsMatch !== -1) {
+      cleanPath = cleanPath.substring(0, ghPullsMatch);
+    }
+  }
+
+  // Strip tree/blob subpaths: /-/tree/..., /-/blob/..., /tree/..., /blob/...
+  const treeMatch = cleanPath.search(/\/(?:-\/)?(?:tree|blob)\//);
+  if (treeMatch !== -1) {
+    cleanPath = cleanPath.substring(0, treeMatch);
+  }
+
+  // Strip commit/commits subpaths if after repo path: /commit/..., /commits/...
+  const commitMatch = cleanPath.search(/\/(?:-\/)?(?:commit|commits)\//);
+  if (commitMatch !== -1) {
+    cleanPath = cleanPath.substring(0, commitMatch);
+  }
+
+  // Strip trailing slashes
+  cleanPath = cleanPath.replace(/\/+$/, "");
+
+  // Strip .git extension
+  if (cleanPath.toLowerCase().endsWith(".git")) {
+    cleanPath = cleanPath.slice(0, -4);
+  }
+
+  // Strip leading slashes
+  cleanPath = cleanPath.replace(/^\/+/, "");
+  if (!cleanPath) return undefined;
+
+  const segments = cleanPath.split("/").filter(Boolean);
+  if (segments.length === 0) return undefined;
+
+  const name = segments[segments.length - 1] ?? "";
+  if (!name) return undefined;
+  const namespace = segments.slice(0, -1).join("/");
+  const gitHost = host.toLowerCase();
+  const repositoryPath = cleanPath;
+  const canonicalScheme = protocol === "http:" ? "http:" : "https:";
+  const repositoryUrl = `${canonicalScheme}//${gitHost}/${repositoryPath}`;
+  const identityKey = `${gitHost}/${repositoryPath.toLowerCase()}`;
+
+  return {
+    gitHost,
+    repositoryPath,
+    name,
+    namespace,
+    repositoryUrl,
+    identityKey,
+  };
+}
+
+/**
+ * Checks whether two URLs refer to the exact same repository.
+ */
+export function isSameRepository(urlA: string, urlB: string): boolean {
+  const idA = extractRepositoryIdentity(urlA);
+  const idB = extractRepositoryIdentity(urlB);
+  if (!idA || !idB) return false;
+  return idA.identityKey === idB.identityKey;
+}
+
+/**
+ * Extracts the merge request or pull request number/id from a URL.
+ */
+export function extractMergeRequestNumber(url: string): string | undefined {
+  const ref = parseChangeRequestUrl(url);
+  if (ref) return ref.id;
+  const match = /\/(?:merge_requests|pull)\/(\d+)/.exec(url);
+  return match ? match[1] : undefined;
+}
+

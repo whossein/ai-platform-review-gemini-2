@@ -11,6 +11,9 @@ import {
   parseGitHubPrUrl,
   parseChangeRequestUrl,
   baseUrlFromChangeRequestUrl,
+  extractRepositoryIdentity,
+  isSameRepository,
+  extractMergeRequestNumber,
 } from "./url.js";
 
 describe("parseGitLabMrUrl", () => {
@@ -90,3 +93,97 @@ describe("baseUrlFromChangeRequestUrl", () => {
     ).toBe("https://git.acme.internal:8443");
   });
 });
+
+describe("extractRepositoryIdentity", () => {
+  it("extracts identity from a GitLab MR URL with nested namespace", () => {
+    const id = extractRepositoryIdentity(
+      "https://gitlab.company.com/frontend/storefront-pwa/-/merge_requests/123",
+    );
+    expect(id).toBeDefined();
+    expect(id?.gitHost).toBe("gitlab.company.com");
+    expect(id?.repositoryPath).toBe("frontend/storefront-pwa");
+    expect(id?.name).toBe("storefront-pwa");
+    expect(id?.namespace).toBe("frontend");
+    expect(id?.repositoryUrl).toBe(
+      "https://gitlab.company.com/frontend/storefront-pwa",
+    );
+    expect(id?.identityKey).toBe(
+      "gitlab.company.com/frontend/storefront-pwa",
+    );
+  });
+
+  it("extracts identity from plain repository URL", () => {
+    const id = extractRepositoryIdentity(
+      "https://gitlab.company.com/frontend/storefront-pwa",
+    );
+    expect(id).toBeDefined();
+    expect(id?.gitHost).toBe("gitlab.company.com");
+    expect(id?.repositoryPath).toBe("frontend/storefront-pwa");
+    expect(id?.name).toBe("storefront-pwa");
+    expect(id?.namespace).toBe("frontend");
+  });
+
+  it("normalizes .git suffix, trailing slashes, and query params", () => {
+    const id = extractRepositoryIdentity(
+      "https://gitlab.company.com/frontend/storefront-pwa.git/?ref=master#section",
+    );
+    expect(id?.identityKey).toBe(
+      "gitlab.company.com/frontend/storefront-pwa",
+    );
+    expect(id?.name).toBe("storefront-pwa");
+  });
+
+  it("extracts identity from a GitHub PR URL", () => {
+    const id = extractRepositoryIdentity(
+      "https://github.com/facebook/react/pull/456",
+    );
+    expect(id).toBeDefined();
+    expect(id?.gitHost).toBe("github.com");
+    expect(id?.repositoryPath).toBe("facebook/react");
+    expect(id?.name).toBe("react");
+    expect(id?.namespace).toBe("facebook");
+  });
+});
+
+describe("isSameRepository duplicate prevention", () => {
+  it("recognizes repository URL and its MR URL as the same project", () => {
+    const same = isSameRepository(
+      "https://gitlab.company.com/frontend/storefront-pwa",
+      "https://gitlab.company.com/frontend/storefront-pwa/-/merge_requests/123",
+    );
+    expect(same).toBe(true);
+  });
+
+  it("recognizes different hosts with same path as DIFFERENT projects", () => {
+    const same = isSameRepository(
+      "https://git.company-a.com/team/my-app",
+      "https://git.company-b.com/team/my-app",
+    );
+    expect(same).toBe(false);
+  });
+
+  it("recognizes different branches / MRs from same repo as same project", () => {
+    const same = isSameRepository(
+      "https://gitlab.company.com/frontend/storefront-pwa/-/merge_requests/123",
+      "https://gitlab.company.com/frontend/storefront-pwa/-/merge_requests/456",
+    );
+    expect(same).toBe(true);
+  });
+});
+
+describe("extractMergeRequestNumber", () => {
+  it("extracts MR number from GitLab MR URL", () => {
+    expect(
+      extractMergeRequestNumber(
+        "https://gitlab.company.com/frontend/storefront-pwa/-/merge_requests/123",
+      ),
+    ).toBe("123");
+  });
+
+  it("extracts PR number from GitHub PR URL", () => {
+    expect(
+      extractMergeRequestNumber("https://github.com/facebook/react/pull/456"),
+    ).toBe("456");
+  });
+});
+

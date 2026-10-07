@@ -151,6 +151,21 @@ function HistoryCard({
             >
               {record.inputMode}
             </span>
+            {(record.result?.project?.name || record.projectId) && (
+              <span
+                style={{
+                  background: "rgba(59, 130, 246, 0.15)",
+                  color: "var(--accent)",
+                  border: "1px solid rgba(59, 130, 246, 0.3)",
+                  padding: "0.2rem 0.6rem",
+                  borderRadius: "20px",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                }}
+              >
+                Project: {record.result?.project?.name || record.projectId}
+              </span>
+            )}
             <span
               style={{
                 color: "var(--muted)",

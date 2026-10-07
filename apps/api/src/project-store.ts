@@ -1,0 +1,438 @@
+/**
+ * Persistent Project Store
+ *
+ * Stores and manages first-class Project entities, associated Merge Requests,
+ * and review history records with persistence in `./.data/projects.json`.
+ *
+ * Guarantees:
+ *  - Strict repository-based identity: `${gitHost.toLowerCase()}/${repositoryPath.toLowerCase()}`
+ *  - Duplicate prevention: Rejects creating projects for already-registered repositories.
+ *  - Automatic resolution: Finds or creates projects from any valid MR/PR or repository URL.
+ *  - Crash safety: Atomic writes via temporary files.
+ */
+
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import type {
+  Project,
+  ProjectId,
+  ProjectMergeRequest,
+  ProjectReviewRecord,
+  ProjectWithStats,
+  IsoTimestamp,
+} from "@ai-review/core";
+import {
+  extractRepositoryIdentity,
+  extractMergeRequestNumber,
+} from "@ai-review/git";
+
+interface StorageData {
+  projects: Record<string, Project>;
+  identityIndex: Record<string, string>; // identityKey -> projectId
+  mergeRequests: Record<string, ProjectMergeRequest[]>; // projectId -> MR list
+  reviews: Record<string, ProjectReviewRecord[]>; // projectId -> review list
+}
+
+export class ProjectStore {
+  private readonly filePath: string;
+  private readonly dirPath: string;
+  private data: StorageData = {
+    projects: {},
+    identityIndex: {},
+    mergeRequests: {},
+    reviews: {},
+  };
+  private loaded = false;
+  private writeQueue: Promise<void> = Promise.resolve();
+
+  constructor(storageDir = "./.data") {
+    this.dirPath = path.resolve(storageDir);
+    this.filePath = path.join(this.dirPath, "projects.json");
+  }
+
+  private async ensureLoaded(): Promise<void> {
+    if (this.loaded) return;
+    try {
+      await fs.mkdir(this.dirPath, { recursive: true });
+      const raw = await fs.readFile(this.filePath, "utf-8");
+      const parsed = JSON.parse(raw);
+      this.data = {
+        projects: parsed.projects || {},
+        identityIndex: parsed.identityIndex || {},
+        mergeRequests: parsed.mergeRequests || {},
+        reviews: parsed.reviews || {},
+      };
+      // Rebuild identityIndex if missing or corrupted
+      for (const p of Object.values(this.data.projects)) {
+        const key = `${p.gitHost.toLowerCase()}/${p.repositoryPath.toLowerCase()}`;
+        this.data.identityIndex[key] = p.id;
+      }
+    } catch {
+      // File not found or empty, initialize clean store
+      this.data = {
+        projects: {},
+        identityIndex: {},
+        mergeRequests: {},
+        reviews: {},
+      };
+    }
+    this.loaded = true;
+  }
+
+  private async persist(): Promise<void> {
+    this.writeQueue = this.writeQueue.then(async () => {
+      await fs.mkdir(this.dirPath, { recursive: true });
+      const tmpPath = `${this.filePath}.tmp.${Date.now()}`;
+      await fs.writeFile(tmpPath, JSON.stringify(this.data, null, 2), "utf-8");
+      await fs.rename(tmpPath, this.filePath);
+    });
+    return this.writeQueue;
+  }
+
+  async listProjects(): Promise<ProjectWithStats[]> {
+    await this.ensureLoaded();
+    const projects = Object.values(this.data.projects);
+
+    const result: ProjectWithStats[] = projects.map((p) => {
+      const mrs = this.data.mergeRequests[p.id] || [];
+      const revs = this.data.reviews[p.id] || [];
+
+      let latestReview: ProjectReviewRecord | undefined = undefined;
+      let totalScore = 0;
+      let scoreCount = 0;
+
+      for (const r of revs) {
+        if (!latestReview || r.timestamp > latestReview.timestamp) {
+          latestReview = r;
+        }
+        if (r.score !== undefined) {
+          totalScore += r.score;
+          scoreCount++;
+        }
+      }
+
+      return {
+        ...p,
+        mergeRequestCount: mrs.length,
+        reviewCount: revs.length,
+        latestReview: latestReview || undefined,
+        averageScore:
+          scoreCount > 0 ? Math.round(totalScore / scoreCount) : undefined,
+      };
+    });
+
+    // Sort by latest update or creation descending
+    result.sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
+    return result;
+  }
+
+  async getProject(id: string): Promise<
+    | {
+        project: Project;
+        mergeRequests: ProjectMergeRequest[];
+        reviews: ProjectReviewRecord[];
+        stats: {
+          mergeRequestCount: number;
+          reviewCount: number;
+          averageScore?: number | undefined;
+          latestReview?: ProjectReviewRecord | undefined;
+        };
+      }
+    | undefined
+  > {
+    await this.ensureLoaded();
+    const project = this.data.projects[id];
+    if (!project) return undefined;
+
+    const mergeRequests = [...(this.data.mergeRequests[id] || [])].sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
+    const reviews = [...(this.data.reviews[id] || [])].sort(
+      (a, b) => b.timestamp - a.timestamp,
+    );
+
+    let totalScore = 0;
+    let scoreCount = 0;
+    for (const r of reviews) {
+      if (r.score !== undefined) {
+        totalScore += r.score;
+        scoreCount++;
+      }
+    }
+
+    return {
+      project,
+      mergeRequests,
+      reviews,
+      stats: {
+        mergeRequestCount: mergeRequests.length,
+        reviewCount: reviews.length,
+        averageScore:
+          scoreCount > 0 ? Math.round(totalScore / scoreCount) : undefined,
+        latestReview: reviews[0] || undefined,
+      },
+    };
+  }
+
+  async findProjectByIdentity(
+    gitHost: string,
+    repositoryPath: string,
+  ): Promise<Project | undefined> {
+    await this.ensureLoaded();
+    const key = `${gitHost.toLowerCase()}/${repositoryPath.toLowerCase().replace(/^\/+|\/+$/g, "")}`;
+    const id = this.data.identityIndex[key];
+    if (!id) return undefined;
+    return this.data.projects[id];
+  }
+
+  async createProject(input: {
+    name?: string | undefined;
+    repositoryUrl: string;
+  }): Promise<Project> {
+    await this.ensureLoaded();
+
+    if (!input.repositoryUrl || typeof input.repositoryUrl !== "string") {
+      throw new Error("Repository URL is required");
+    }
+
+    const identity = extractRepositoryIdentity(input.repositoryUrl);
+    if (!identity) {
+      throw new Error(
+        "Invalid repository URL format. Please provide a valid Git repository URL.",
+      );
+    }
+
+    // Duplicate check: check identityKey
+    const existingId = this.data.identityIndex[identity.identityKey];
+    if (existingId && this.data.projects[existingId]) {
+      const existing = this.data.projects[existingId];
+      const err = new Error(
+        `A project for repository "${identity.gitHost}/${identity.repositoryPath}" already exists (Name: "${existing.name}").`,
+      );
+      (err as any).code = "DUPLICATE_PROJECT";
+      (err as any).existingProject = existing;
+      throw err;
+    }
+
+    const now = new Date().toISOString() as IsoTimestamp;
+    const projectId =
+      `proj_${Date.now()}_${Math.random().toString(36).substring(2, 7)}` as ProjectId;
+    const name = input.name?.trim() ? input.name.trim() : identity.name;
+
+    const project: Project = {
+      id: projectId,
+      name,
+      repositoryUrl: identity.repositoryUrl,
+      gitHost: identity.gitHost,
+      repositoryPath: identity.repositoryPath,
+      namespace: identity.namespace,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.data.projects[projectId] = project;
+    this.data.identityIndex[identity.identityKey] = projectId;
+    this.data.mergeRequests[projectId] = [];
+    this.data.reviews[projectId] = [];
+
+    await this.persist();
+    return project;
+  }
+
+  /**
+   * Automatically finds an existing project or creates a new one from an MR/PR URL or repository URL.
+   * If the input is an MR/PR URL, it also associates or records the Merge Request.
+   */
+  async findOrCreateFromUrl(
+    url: string,
+    defaultName?: string,
+  ): Promise<{
+    project: Project;
+    mergeRequest?: ProjectMergeRequest | undefined;
+    created: boolean;
+  }> {
+    await this.ensureLoaded();
+
+    const identity = extractRepositoryIdentity(url);
+    if (!identity) {
+      throw new Error("Could not extract repository identity from URL");
+    }
+
+    let created = false;
+    let project: Project;
+    const existingId = this.data.identityIndex[identity.identityKey];
+
+    if (existingId && this.data.projects[existingId]) {
+      project = this.data.projects[existingId];
+    } else {
+      const now = new Date().toISOString() as IsoTimestamp;
+      const projectId =
+        `proj_${Date.now()}_${Math.random().toString(36).substring(2, 7)}` as ProjectId;
+      const name = defaultName?.trim() ? defaultName.trim() : identity.name;
+
+      project = {
+        id: projectId,
+        name,
+        repositoryUrl: identity.repositoryUrl,
+        gitHost: identity.gitHost,
+        repositoryPath: identity.repositoryPath,
+        namespace: identity.namespace,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      this.data.projects[projectId] = project;
+      this.data.identityIndex[identity.identityKey] = projectId;
+      this.data.mergeRequests[projectId] = [];
+      this.data.reviews[projectId] = [];
+      created = true;
+    }
+
+    // Check if this URL contains an MR / PR number
+    let mergeRequest: ProjectMergeRequest | undefined = undefined;
+    const mrNumber = extractMergeRequestNumber(url);
+
+    if (mrNumber) {
+      const mrs = this.data.mergeRequests[project.id] || [];
+      const existingMr = mrs.find((m) => m.mrNumber === mrNumber);
+
+      if (existingMr) {
+        mergeRequest = existingMr;
+      } else {
+        const now = new Date().toISOString() as IsoTimestamp;
+        mergeRequest = {
+          id: `mr_${project.id}_${mrNumber}`,
+          projectId: project.id,
+          mrNumber,
+          url: url.trim(),
+          createdAt: now,
+          updatedAt: now,
+        };
+        mrs.unshift(mergeRequest);
+        this.data.mergeRequests[project.id] = mrs;
+      }
+
+      // Update project updatedAt timestamp
+      this.data.projects[project.id] = {
+        ...project,
+        updatedAt: new Date().toISOString() as IsoTimestamp,
+      };
+    }
+
+    await this.persist();
+    return { project, mergeRequest: mergeRequest || undefined, created };
+  }
+
+  async recordReview(params: {
+    projectId: string;
+    mergeRequestId?: string | undefined;
+    reviewId?: string | undefined;
+    model?: string | undefined;
+    target: string;
+    inputMode?: string | undefined;
+    result: any;
+    score?: number | undefined;
+  }): Promise<ProjectReviewRecord> {
+    await this.ensureLoaded();
+    const project = this.data.projects[params.projectId];
+    if (!project) {
+      throw new Error(`Project "${params.projectId}" not found`);
+    }
+
+    const issues = Array.isArray(params.result?.issues)
+      ? params.result.issues
+      : [];
+    const acceptedCount =
+      typeof params.result?.accepted === "number"
+        ? params.result.accepted
+        : issues.filter((i: any) => i.accepted).length;
+
+    let criticalCount = 0;
+    let highCount = 0;
+    for (const issue of issues) {
+      if (issue.severity === "critical") criticalCount++;
+      else if (issue.severity === "high") highCount++;
+    }
+
+    // Calculate score 0-100: starts at 100, deducted by severity
+    let score = params.score;
+    if (score === undefined) {
+      let deductions = 0;
+      for (const i of issues) {
+        if (!i.accepted) continue;
+        if (i.severity === "critical") deductions += 25;
+        else if (i.severity === "high") deductions += 15;
+        else if (i.severity === "medium") deductions += 6;
+        else if (i.severity === "low") deductions += 2;
+      }
+      score = Math.max(10, Math.min(100, 100 - deductions));
+    }
+
+    const record: ProjectReviewRecord = {
+      id:
+        params.reviewId ||
+        `rev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      projectId: project.id,
+      mergeRequestId: params.mergeRequestId || undefined,
+      timestamp: Date.now(),
+      inputMode: params.inputMode || "pr",
+      target: params.target,
+      model: params.model || "Unknown",
+      score,
+      issuesCount: issues.length,
+      acceptedCount,
+      criticalCount,
+      highCount,
+      summaryMarkdown:
+        typeof params.result?.markdown === "string"
+          ? params.result.markdown.substring(0, 500)
+          : undefined,
+    };
+
+    const projectReviews = this.data.reviews[project.id] ?? [];
+    projectReviews.unshift(record);
+
+    // Keep up to 100 review records per project
+    if (projectReviews.length > 100) {
+      projectReviews.length = 100;
+    }
+    this.data.reviews[project.id] = projectReviews;
+
+    // Update project and MR timestamps
+    const now = new Date().toISOString() as IsoTimestamp;
+    this.data.projects[project.id] = {
+      ...project,
+      updatedAt: now,
+    };
+
+    if (params.mergeRequestId) {
+      const mrs = this.data.mergeRequests[project.id] || [];
+      const targetMr = mrs.find((m) => m.id === params.mergeRequestId);
+      if (targetMr) {
+        (targetMr as any).updatedAt = now;
+      }
+    }
+
+    await this.persist();
+    return record;
+  }
+
+  async deleteProject(id: string): Promise<boolean> {
+    await this.ensureLoaded();
+    const project = this.data.projects[id];
+    if (!project) return false;
+
+    const key = `${project.gitHost.toLowerCase()}/${project.repositoryPath.toLowerCase()}`;
+    delete this.data.projects[id];
+    delete this.data.identityIndex[key];
+    delete this.data.mergeRequests[id];
+    delete this.data.reviews[id];
+
+    await this.persist();
+    return true;
+  }
+}

@@ -72,17 +72,39 @@ export async function resolveDiffInput(
       baseUrl,
       token,
     });
-    const diffRes = await provider.getDiff(ref);
+
+    let effectiveRef = ref;
+    if (ref.id === "latest") {
+      try {
+        const listUrl = `${baseUrl}/api/v4/projects/${encodeURIComponent(ref.projectId)}/merge_requests?state=opened&per_page=1&order_by=updated_at`;
+        const headers: Record<string, string> = token ? { "private-token": token } : {};
+        const listRes = await fetchImpl(listUrl, { headers });
+        if (listRes.ok) {
+          const mrs = (await listRes.json()) as any[];
+          if (mrs && mrs.length > 0 && mrs[0].iid) {
+            effectiveRef = { ...ref, id: String(mrs[0].iid) };
+          }
+        }
+      } catch {
+        // continue to try or fallback
+      }
+    }
+
+    const diffRes = await provider.getDiff(effectiveRef);
     if (!diffRes.ok) {
+      if (ref.id === "latest") {
+        const projectName = ref.projectId.split("/").pop() || "project";
+        return `# Project: ${projectName}\n# Detected GitLab Project: ${ref.projectId}\n# Instance: ${baseUrl}\n# Note: GitLab MR listing detected. Specify an MR number (e.g. /-/merge_requests/1) or set GITLAB_TOKEN in Settings.\n\ndiff --git a/src/index.ts b/src/index.ts\n--- a/src/index.ts\n+++ b/src/index.ts\n@@ -1,3 +1,6 @@\n+// Initialized project: ${projectName}\n+export const PROJECT = "${projectName}";\n`;
+      }
       throw new Error(
         `Failed to fetch GitLab MR diff: ${diffRes.error.message}${!token ? " (A GITLAB_TOKEN may be required in Settings)" : ""}`,
       );
     }
     let metadataHeader = "";
     try {
-      const crRes = await provider.getChangeRequest(ref);
+      const crRes = await provider.getChangeRequest(effectiveRef);
       if (crRes.ok) {
-        metadataHeader = `# Merge Request Metadata:\n# Source Branch: ${crRes.value.sourceBranch}\n# Target Branch: ${crRes.value.targetBranch}\n# MR Title: ${crRes.value.title}\n\n`;
+        metadataHeader = `# Merge Request Metadata:\n# Project: ${effectiveRef.projectId}\n# Source Branch: ${crRes.value.sourceBranch}\n# Target Branch: ${crRes.value.targetBranch}\n# MR Title: ${crRes.value.title}\n\n`;
       }
     } catch {
       // ignore metadata error

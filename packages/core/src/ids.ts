@@ -25,6 +25,7 @@ export type ProviderId = Branded<string, "ProviderId">;
 export type ModelId = Branded<string, "ModelId">;
 export type PromptId = Branded<string, "PromptId">;
 export type RepositoryId = Branded<string, "RepositoryId">;
+export type ProjectId = Branded<string, "ProjectId">;
 export type OrganizationId = Branded<string, "OrganizationId">;
 export type SessionId = Branded<string, "SessionId">;
 

@@ -20,6 +20,7 @@ export * from "./memory.js";
 export * from "./agent.js";
 export * from "./workflow.js";
 export * from "./git.js";
+export * from "./project.js";
 export * from "./repository.js";
 export * from "./rules.js";
 export * from "./knowledge.js";

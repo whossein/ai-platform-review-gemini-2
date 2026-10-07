@@ -25,6 +25,7 @@
     "@ai-review/context-engine": "*",
     "@ai-review/agent-runtime": "*",
     "@ai-review/memory": "*",
+    "@ai-review/repository": "*",
     "@ai-review/workflow-engine": "*"
   },
   "devDependencies": {

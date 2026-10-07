@@ -664,3 +664,84 @@ button:disabled {
     display: none;
   }
 }
+
+/* Responsive URL & Long Text Break Handling */
+.break-url,
+.url-text,
+.repo-url,
+.code-url,
+a.url-link,
+.url-badge,
+code.url-code {
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
+  max-width: 100% !important;
+}
+
+/* Ensure flex parents of URLs never overflow on mobile */
+.responsive-url-box {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.responsive-url-box * {
+  min-width: 0;
+}
+
+/* Inputs responsive sizing */
+input[type="url"],
+input[type="text"],
+.form-group input {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 768px) {
+  .project-header-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+  }
+
+  .project-stats-grid {
+    width: 100% !important;
+    justify-content: space-between !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+
+  .project-card-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  .project-actions-row {
+    width: 100% !important;
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+  }
+
+  .mr-list-item {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+  }
+
+  .mr-list-item > div:last-child {
+    width: 100% !important;
+    justify-content: space-between !important;
+  }
+
+  .detected-repo-box {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  .detected-repo-box > button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
